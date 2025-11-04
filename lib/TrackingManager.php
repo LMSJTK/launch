@@ -25,13 +25,13 @@ class TrackingManager {
             'id' => $trackingLinkId,
             'recipient_id' => $recipientId,
             'content_id' => $contentId,
-            'launch_url' => '/launch.php?tid=' . $trackingLinkId,
+            'launch_url' => '/public/launch.php?tid=' . $trackingLinkId,
             'status' => 'pending'
         ]);
 
         return [
             'tracking_link_id' => $trackingLinkId,
-            'launch_url' => '/launch.php?tid=' . $trackingLinkId
+            'launch_url' => '/public/launch.php?tid=' . $trackingLinkId
         ];
     }
 

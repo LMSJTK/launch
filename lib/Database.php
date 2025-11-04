@@ -114,7 +114,12 @@ class Database {
 
         $params = [];
         foreach ($data as $key => $value) {
-            $params[':' . $key] = $value;
+            // Convert boolean values to PostgreSQL format
+            if (is_bool($value)) {
+                $params[':' . $key] = $value ? 'true' : 'false';
+            } else {
+                $params[':' . $key] = $value;
+            }
         }
 
         $this->query($sql, $params);
@@ -148,7 +153,12 @@ class Database {
 
         $params = [];
         foreach ($data as $key => $value) {
-            $params[':' . $key] = $value;
+            // Convert boolean values to PostgreSQL format
+            if (is_bool($value)) {
+                $params[':' . $key] = $value ? 'true' : 'false';
+            } else {
+                $params[':' . $key] = $value;
+            }
         }
 
         $params = array_merge($params, $whereParams);
