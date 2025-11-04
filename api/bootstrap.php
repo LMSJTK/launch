@@ -25,7 +25,9 @@ $configPath = __DIR__ . '/../config/config.php';
 if (!file_exists($configPath)) {
     $configPath = __DIR__ . '/../config/config.example.php';
 }
+error_log("Loading config from: " . $configPath);
 $config = require $configPath;
+error_log("Config loaded, debug mode: " . ($config['app']['debug'] ? 'true' : 'false'));
 
 // Set timezone
 date_default_timezone_set($config['app']['timezone']);
@@ -33,21 +35,48 @@ date_default_timezone_set($config['app']['timezone']);
 // Autoload classes
 spl_autoload_register(function ($className) {
     $file = __DIR__ . '/../lib/' . $className . '.php';
+    error_log("Autoloading class: $className from $file");
     if (file_exists($file)) {
         require_once $file;
+    } else {
+        error_log("Class file not found: $file");
     }
 });
 
 // Initialize core classes
 try {
+    error_log("Initializing Database...");
     $db = Database::getInstance($config['database']);
+    error_log("Database initialized");
+
+    error_log("Initializing ClaudeAPI...");
     $claudeAPI = new ClaudeAPI($config['claude']);
+    error_log("ClaudeAPI initialized");
+
+    error_log("Initializing AWSSNS...");
     $sns = new AWSSNS($config['aws_sns']);
+    error_log("AWSSNS initialized");
+
+    error_log("Initializing ContentProcessor...");
     $contentProcessor = new ContentProcessor($db, $claudeAPI, $config['content']['upload_dir']);
+    error_log("ContentProcessor initialized");
+
+    error_log("Initializing TrackingManager...");
     $trackingManager = new TrackingManager($db, $sns);
+    error_log("TrackingManager initialized");
+
+    error_log("All classes initialized successfully");
 } catch (Exception $e) {
+    error_log("Bootstrap initialization failed: " . $e->getMessage());
+    error_log("Stack trace: " . $e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['error' => 'System initialization failed', 'message' => $e->getMessage()]);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => 'System initialization failed',
+        'message' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine()
+    ]);
     exit;
 }
 

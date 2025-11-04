@@ -4,11 +4,21 @@
  * Handles file uploads for SCORM, HTML, videos, and raw HTML
  */
 
+// Enable all error reporting
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('log_errors', 1);
+error_log("=== UPLOAD.PHP STARTING ===");
+
 require_once __DIR__ . '/bootstrap.php';
+error_log("Bootstrap loaded successfully");
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    error_log("Wrong method: " . $_SERVER['REQUEST_METHOD']);
     sendJSON(['error' => 'Method not allowed'], 405);
 }
+
+error_log("POST request received");
 
 try {
     // Get form data
@@ -16,6 +26,9 @@ try {
     $title = $_POST['title'] ?? 'Untitled Content';
     $description = $_POST['description'] ?? '';
     $companyId = $_POST['company_id'] ?? 'default';
+
+    error_log("Content type: " . ($contentType ?? 'NULL'));
+    error_log("Title: " . $title);
 
     if (!$contentType) {
         sendJSON(['error' => 'content_type is required'], 400);
