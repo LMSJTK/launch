@@ -1,0 +1,27 @@
+# Configuration files with credentials
+config/config.php
+
+# Uploaded content
+content/*/
+
+# Vendor directories (if composer is ever added)
+vendor/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
