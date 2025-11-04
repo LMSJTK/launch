@@ -23,7 +23,7 @@ class AWSSNS {
     /**
      * Publish a message to SNS topic
      */
-    public function publish($message, $subject = null, $attributes = []) {
+    public function publish($message, $subject = null, $attributes = [], $messageGroupId = null) {
         $endpoint = "https://sns.{$this->region}.amazonaws.com/";
 
         // Prepare message data
@@ -40,6 +40,16 @@ class AWSSNS {
 
         if ($subject) {
             $params['Subject'] = $subject;
+        }
+
+        // Check if this is a FIFO topic (ARN ends with .fifo)
+        $isFifo = substr($this->topicArn, -5) === '.fifo';
+        if ($isFifo) {
+            // FIFO topics require MessageGroupId
+            $params['MessageGroupId'] = $messageGroupId ?: 'default-group';
+            // MessageDeduplicationId is optional if ContentBasedDeduplication is enabled
+            // If not enabled, we'll generate one based on message content
+            $params['MessageDeduplicationId'] = md5($message . time());
         }
 
         // Add message attributes
@@ -192,7 +202,8 @@ class AWSSNS {
                 'event_type' => 'content_interaction',
                 'recipient_id' => $recipientId,
                 'content_id' => $contentId
-            ]
+            ],
+            $recipientId // Use recipient_id as MessageGroupId for FIFO topics
         );
     }
 }
