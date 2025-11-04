@@ -77,6 +77,30 @@ class ClaudeAPI {
     }
 
     /**
+     * Extract only HTML from response, removing explanatory text
+     */
+    private function extractHTMLOnly($text) {
+        // If the text starts with <!DOCTYPE or <html or <, it's likely all HTML
+        if (preg_match('/^\s*(<(!DOCTYPE|html|head|body|div|form|script|style|!--|meta|link))/i', $text)) {
+            // Find where HTML ends - look for common ending patterns followed by explanation text
+            // Look for closing </html> or </body> followed by non-HTML text
+            if (preg_match('/(.*?<\/html>\s*)(?:[^<]|$)/is', $text, $matches)) {
+                return trim($matches[1]);
+            }
+            if (preg_match('/(.*?<\/body>\s*)(?:[^<]|$)/is', $text, $matches)) {
+                return trim($matches[1]);
+            }
+        }
+
+        // Try to extract HTML between first < and last >
+        if (preg_match('/<.*>/s', $text, $matches)) {
+            return trim($matches[0]);
+        }
+
+        return trim($text);
+    }
+
+    /**
      * Tag HTML content with interactive elements
      */
     public function tagHTMLContent($htmlContent, $contentType = 'educational') {
@@ -86,21 +110,23 @@ class ClaudeAPI {
             "1. Add data-tag attributes to interactive elements like inputs, buttons, selects, textareas, clickable elements\n" .
             "2. Tag values should be lowercase, hyphenated topic names (e.g., 'ransomware', 'phishing', 'password-security')\n" .
             "3. Only tag elements that are clearly testing knowledge or interaction with a specific topic\n" .
-            "4. Return the complete modified HTML with data-tag attributes added\n" .
+            "4. Return ONLY the complete modified HTML with data-tag attributes added\n" .
             "5. Do not modify the functionality or structure of the HTML, only add data-tag attributes\n" .
-            "6. Common security topics include: phishing, ransomware, malware, social-engineering, password-security, data-privacy, email-security";
+            "6. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
+            "7. Common security topics include: phishing, ransomware, malware, social-engineering, password-security, data-privacy, email-security";
 
         $messages = [
             [
                 'role' => 'user',
-                'content' => "Please analyze this HTML content and add data-tag attributes to interactive elements that test specific knowledge or skills:\n\n" . $htmlContent
+                'content' => "Add data-tag attributes to interactive elements in this HTML. Return ONLY the modified HTML without any explanations or markdown:\n\n" . $htmlContent
             ]
         ];
 
         $taggedHTML = $this->sendRequest($messages, $systemPrompt);
 
-        // Strip any markdown code blocks
+        // Strip any markdown code blocks and explanatory text
         $taggedHTML = $this->stripMarkdownCodeBlocks($taggedHTML);
+        $taggedHTML = $this->extractHTMLOnly($taggedHTML);
 
         // Extract tags that were added
         preg_match_all('/data-tag="([^"]+)"/', $taggedHTML, $matches);
@@ -127,8 +153,9 @@ class ClaudeAPI {
             "1. Add data-cue attributes to elements containing phishing indicators\n" .
             "2. Use format: data-cue=\"category:description\" (e.g., data-cue=\"language:urgency-tactic\")\n" .
             "3. Categories: visual, language, technical, error\n" .
-            "4. Return the complete modified HTML with data-cue attributes added\n" .
-            "5. Do not modify the content or structure, only add data-cue attributes";
+            "4. Return ONLY the complete modified HTML with data-cue attributes added\n" .
+            "5. Do not modify the content or structure, only add data-cue attributes\n" .
+            "6. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML";
 
         if ($nistGuideContent) {
             $systemPrompt .= "\n\nReference Guide:\n" . $nistGuideContent;
@@ -137,14 +164,15 @@ class ClaudeAPI {
         $messages = [
             [
                 'role' => 'user',
-                'content' => "Please analyze this email and add data-cue attributes for phishing indicators:\n\n" . $emailHTML
+                'content' => "Add data-cue attributes to phishing indicators in this email. Return ONLY the modified HTML without any explanations or markdown:\n\n" . $emailHTML
             ]
         ];
 
         $taggedHTML = $this->sendRequest($messages, $systemPrompt);
 
-        // Strip any markdown code blocks
+        // Strip any markdown code blocks and explanatory text
         $taggedHTML = $this->stripMarkdownCodeBlocks($taggedHTML);
+        $taggedHTML = $this->extractHTMLOnly($taggedHTML);
 
         // Extract cues that were added
         preg_match_all('/data-cue="([^"]+)"/', $taggedHTML, $matches);
