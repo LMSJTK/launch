@@ -99,7 +99,7 @@ class Database {
     }
 
     /**
-     * Insert a record and return the ID
+     * Insert a record and return the ID (if auto-generated)
      */
     public function insert($table, $data) {
         $columns = array_keys($data);
@@ -119,8 +119,15 @@ class Database {
 
         $this->query($sql, $params);
 
-        // Return last inserted ID if available
-        return $this->pdo->lastInsertId();
+        // Return last inserted ID if available (only works for SERIAL columns)
+        // For tables with text IDs (like content), this will return null
+        try {
+            $lastId = $this->pdo->lastInsertId();
+            return $lastId ?: null;
+        } catch (PDOException $e) {
+            // No sequence used (e.g., text ID), return null
+            return null;
+        }
     }
 
     /**
