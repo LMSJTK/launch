@@ -474,11 +474,17 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    showAlert('upload-alert', 'success',
-                        `Content uploaded successfully! ID: ${result.content_id}` +
-                        (result.tags ? `<br>Tags: ${result.tags.join(', ')}` : '') +
-                        (result.cues ? `<br>Cues: ${result.cues.join(', ')}` : '')
-                    );
+                    let message = `Content uploaded successfully! ID: ${result.content_id}`;
+
+                    if (result.tags && Array.isArray(result.tags) && result.tags.length > 0) {
+                        message += `<br>Tags: ${result.tags.join(', ')}`;
+                    }
+
+                    if (result.cues && Array.isArray(result.cues) && result.cues.length > 0) {
+                        message += `<br>Cues: ${result.cues.join(', ')}`;
+                    }
+
+                    showAlert('upload-alert', 'success', message);
                     form.reset();
                 } else {
                     showAlert('upload-alert', 'error', result.error || 'Upload failed');
