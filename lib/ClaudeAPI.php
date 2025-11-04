@@ -175,6 +175,9 @@ class ClaudeAPI {
         return <<<JAVASCRIPT
 <script>
 (function() {
+    // Detect API base path - go up from content directory to find api
+    const API_BASE = '../../api';
+
     const TRACKING_LINK_ID = '{$trackingLinkId}';
     const interactions = [];
     let finalScore = null;
@@ -194,7 +197,7 @@ class ClaudeAPI {
         interactions.push(interaction);
 
         // Send to API
-        fetch('/api/track-interaction.php', {
+        fetch(API_BASE + '/track-interaction.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -228,7 +231,7 @@ class ClaudeAPI {
         finalScore = score;
 
         // Send score to API
-        fetch('/api/record-score.php', {
+        fetch(API_BASE + '/record-score.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -242,7 +245,7 @@ class ClaudeAPI {
     };
 
     // Track when page is viewed
-    fetch('/api/track-view.php', {
+    fetch(API_BASE + '/track-view.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tracking_link_id: TRACKING_LINK_ID })

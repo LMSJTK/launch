@@ -6,6 +6,11 @@
 
 require_once __DIR__ . '/../api/bootstrap.php';
 
+// Calculate base path from config URL
+$baseUrl = $config['app']['base_url'];
+$parsedUrl = parse_url($baseUrl);
+$basePath = $parsedUrl['path'] ?? '';
+
 // Get tracking link ID from URL
 $trackingLinkId = $_GET['tid'] ?? null;
 
@@ -84,7 +89,7 @@ try {
                 <div class="container">
                     <h1><?php echo htmlspecialchars($content['title']); ?></h1>
                     <video controls>
-                        <source src="/content/<?php echo htmlspecialchars($contentUrl); ?>" type="<?php echo $mimeType; ?>">
+                        <source src="<?php echo htmlspecialchars($basePath); ?>/content/<?php echo htmlspecialchars($contentUrl); ?>" type="<?php echo $mimeType; ?>">
                         Your browser does not support the video tag.
                     </video>
                 </div>
