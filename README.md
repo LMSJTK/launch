@@ -10,7 +10,8 @@ A vanilla PHP platform for managing SCORM/HTML content with Claude AI-powered ta
 - **Content Launch**: Generate unique launch links for recipients
 - **Interaction Tracking**: Track user interactions with content elements
 - **Score Recording**: SCORM-compatible score tracking
-- **AWS SNS Integration**: Publish interaction events to SNS topics
+- **AWS SNS Integration**: Publish interaction events to SNS FIFO topics
+- **SNS Monitoring**: Real-time viewer for published SNS messages
 
 ## Directory Structure
 
@@ -35,9 +36,10 @@ A vanilla PHP platform for managing SCORM/HTML content with Claude AI-powered ta
 ├── public/                # Web interface
 │   ├── index.html        # Upload/management interface
 │   ├── launch.php        # Content player
+│   ├── sns-monitor.html  # SNS message monitor
+│   ├── system-check.php  # System diagnostics
 │   └── assets/           # CSS, JS assets
-└── includes/              # Shared includes
-    └── tracking.js       # Client-side tracking script
+└── SNS_SETUP_GUIDE.md    # Guide for SNS monitoring setup
 ```
 
 ## Setup
@@ -99,6 +101,29 @@ Body: {
   "success": true
 }
 ```
+
+## Monitoring SNS Messages
+
+View messages published to AWS SNS in real-time:
+
+1. **Database Viewer** (Quickest):
+   - Navigate to `/public/sns-monitor.html`
+   - View all messages stored in `sns_message_queue` table
+   - Filter by sent/pending status
+   - Auto-refresh every 10 seconds
+
+2. **SQS Queue Subscription** (Production):
+   - See `SNS_SETUP_GUIDE.md` for complete instructions
+   - Create an SQS FIFO queue
+   - Subscribe queue to SNS topic
+   - Receive actual SNS messages for processing
+
+The monitor shows:
+- Total messages sent
+- Pending vs. sent status
+- Full message payload with interactions
+- Recipient and content details
+- Timestamp information
 
 ## Requirements
 
