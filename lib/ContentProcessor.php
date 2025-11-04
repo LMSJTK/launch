@@ -8,11 +8,13 @@ class ContentProcessor {
     private $db;
     private $claudeAPI;
     private $contentDir;
+    private $basePath;
 
-    public function __construct($db, $claudeAPI, $contentDir) {
+    public function __construct($db, $claudeAPI, $contentDir, $basePath = '') {
         $this->db = $db;
         $this->claudeAPI = $claudeAPI;
         $this->contentDir = $contentDir;
+        $this->basePath = $basePath;
     }
 
     /**
@@ -88,7 +90,7 @@ class ContentProcessor {
 
         // Inject tracking script before </body>
         $trackingJS = str_replace('{$trackingLinkId}', "<?php echo \$trackingLinkId; ?>",
-            $this->claudeAPI->generateTrackingScript('{$trackingLinkId}'));
+            $this->claudeAPI->generateTrackingScript('{$trackingLinkId}', $this->basePath));
 
         $modifiedHTML = str_replace('</body>', $trackingJS . "\n</body>", $modifiedHTML);
 
@@ -142,7 +144,7 @@ class ContentProcessor {
 
         // Inject tracking script
         $trackingJS = str_replace('{$trackingLinkId}', "<?php echo \$trackingLinkId; ?>",
-            $this->claudeAPI->generateTrackingScript('{$trackingLinkId}'));
+            $this->claudeAPI->generateTrackingScript('{$trackingLinkId}', $this->basePath));
 
         $modifiedHTML = str_replace('</body>', $trackingJS . "\n</body>", $modifiedHTML);
 
@@ -188,7 +190,7 @@ class ContentProcessor {
 
         // Inject tracking script
         $trackingJS = str_replace('{$trackingLinkId}', "<?php echo \$trackingLinkId; ?>",
-            $this->claudeAPI->generateTrackingScript('{$trackingLinkId}'));
+            $this->claudeAPI->generateTrackingScript('{$trackingLinkId}', $this->basePath));
 
         if (stripos($modifiedHTML, '</body>') !== false) {
             $modifiedHTML = str_replace('</body>', $trackingJS . "\n</body>", $modifiedHTML);

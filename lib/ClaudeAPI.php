@@ -67,6 +67,16 @@ class ClaudeAPI {
     }
 
     /**
+     * Strip markdown code blocks from response
+     */
+    private function stripMarkdownCodeBlocks($text) {
+        // Remove ```html ... ``` or ```... ``` blocks
+        $text = preg_replace('/```(?:html)?\s*\n?(.*?)\n?```/s', '$1', $text);
+        // Also remove any leading/trailing whitespace
+        return trim($text);
+    }
+
+    /**
      * Tag HTML content with interactive elements
      */
     public function tagHTMLContent($htmlContent, $contentType = 'educational') {
@@ -88,6 +98,9 @@ class ClaudeAPI {
         ];
 
         $taggedHTML = $this->sendRequest($messages, $systemPrompt);
+
+        // Strip any markdown code blocks
+        $taggedHTML = $this->stripMarkdownCodeBlocks($taggedHTML);
 
         // Extract tags that were added
         preg_match_all('/data-tag="([^"]+)"/', $taggedHTML, $matches);
@@ -130,6 +143,9 @@ class ClaudeAPI {
 
         $taggedHTML = $this->sendRequest($messages, $systemPrompt);
 
+        // Strip any markdown code blocks
+        $taggedHTML = $this->stripMarkdownCodeBlocks($taggedHTML);
+
         // Extract cues that were added
         preg_match_all('/data-cue="([^"]+)"/', $taggedHTML, $matches);
         $cues = array_unique($matches[1]);
@@ -171,12 +187,15 @@ class ClaudeAPI {
     /**
      * Generate interaction tracking script for injecting into content
      */
-    public function generateTrackingScript($trackingLinkId) {
+    public function generateTrackingScript($trackingLinkId, $basePath = '') {
+        // Build API base URL
+        $apiBase = $basePath . '/api';
+
         return <<<JAVASCRIPT
 <script>
 (function() {
-    // Detect API base path - go up from content directory to find api
-    const API_BASE = '../../api';
+    // API base path from config
+    const API_BASE = '{$apiBase}';
 
     const TRACKING_LINK_ID = '{$trackingLinkId}';
     const interactions = [];

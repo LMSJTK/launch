@@ -29,6 +29,10 @@ error_log("Loading config from: " . $configPath);
 $config = require $configPath;
 error_log("Config loaded, debug mode: " . ($config['app']['debug'] ? 'true' : 'false'));
 
+// Extract base path from base_url for API calls
+$parsedUrl = parse_url($config['app']['base_url']);
+$basePath = $parsedUrl['path'] ?? '';
+
 // Set timezone
 date_default_timezone_set($config['app']['timezone']);
 
@@ -58,7 +62,7 @@ try {
     error_log("AWSSNS initialized");
 
     error_log("Initializing ContentProcessor...");
-    $contentProcessor = new ContentProcessor($db, $claudeAPI, $config['content']['upload_dir']);
+    $contentProcessor = new ContentProcessor($db, $claudeAPI, $config['content']['upload_dir'], $basePath);
     error_log("ContentProcessor initialized");
 
     error_log("Initializing TrackingManager...");
