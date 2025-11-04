@@ -88,6 +88,14 @@ class ContentProcessor {
         $trackingScript = "<?php \$trackingLinkId = \$_GET['tid'] ?? 'unknown'; ?>\n";
         $modifiedHTML = $result['html'];
 
+        // Inject base tag for relative URLs to work correctly
+        $baseTag = "<base href=\"{$this->basePath}/content/{$contentId}/\">";
+        if (stripos($modifiedHTML, '</head>') !== false) {
+            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
+        } elseif (stripos($modifiedHTML, '<head>') !== false) {
+            $modifiedHTML = preg_replace('/<head>/i', "<head>\n" . $baseTag, $modifiedHTML, 1);
+        }
+
         // Inject tracking script before </body>
         $trackingJS = str_replace('{$trackingLinkId}', "<?php echo \$trackingLinkId; ?>",
             $this->claudeAPI->generateTrackingScript('{$trackingLinkId}', $this->basePath));
@@ -142,6 +150,14 @@ class ContentProcessor {
         $trackingScript = "<?php \$trackingLinkId = \$_GET['tid'] ?? 'unknown'; ?>\n";
         $modifiedHTML = $result['html'];
 
+        // Inject base tag for relative URLs to work correctly
+        $baseTag = "<base href=\"{$this->basePath}/content/{$contentId}/\">";
+        if (stripos($modifiedHTML, '</head>') !== false) {
+            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
+        } elseif (stripos($modifiedHTML, '<head>') !== false) {
+            $modifiedHTML = preg_replace('/<head>/i', "<head>\n" . $baseTag, $modifiedHTML, 1);
+        }
+
         // Inject tracking script
         $trackingJS = str_replace('{$trackingLinkId}', "<?php echo \$trackingLinkId; ?>",
             $this->claudeAPI->generateTrackingScript('{$trackingLinkId}', $this->basePath));
@@ -187,6 +203,14 @@ class ContentProcessor {
         // Add tracking script
         $trackingScript = "<?php \$trackingLinkId = \$_GET['tid'] ?? 'unknown'; ?>\n";
         $modifiedHTML = $result['html'];
+
+        // Inject base tag for relative URLs to work correctly
+        $baseTag = "<base href=\"{$this->basePath}/content/{$contentId}/\">";
+        if (stripos($modifiedHTML, '</head>') !== false) {
+            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
+        } elseif (stripos($modifiedHTML, '<head>') !== false) {
+            $modifiedHTML = preg_replace('/<head>/i', "<head>\n" . $baseTag, $modifiedHTML, 1);
+        }
 
         // Inject tracking script
         $trackingJS = str_replace('{$trackingLinkId}', "<?php echo \$trackingLinkId; ?>",
