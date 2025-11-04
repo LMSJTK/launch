@@ -182,8 +182,12 @@ try {
 
 } catch (Exception $e) {
     error_log("Upload Error: " . $e->getMessage());
+    error_log("Stack trace: " . $e->getTraceAsString());
     sendJSON([
         'error' => 'Upload failed',
-        'message' => $config['app']['debug'] ? $e->getMessage() : 'Internal server error'
+        'message' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine(),
+        'trace' => $config['app']['debug'] ? $e->getTraceAsString() : null
     ], 500);
 }
