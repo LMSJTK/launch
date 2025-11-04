@@ -409,9 +409,13 @@
     </div>
 
     <script>
-        // Auto-detect base path from current directory
+        // Auto-detect base path - api and public are siblings, so go up from public directory
         const currentPath = window.location.pathname;
-        const basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+        let basePath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+        // Remove /public from the path if present (api and public are sibling directories)
+        if (basePath.endsWith('/public')) {
+            basePath = basePath.substring(0, basePath.lastIndexOf('/'));
+        }
         const API_BASE = basePath + '/api';
 
         function switchTab(tabName) {
