@@ -1,0 +1,189 @@
+<?php
+/**
+ * Content Upload API
+ * Handles file uploads for SCORM, HTML, videos, and raw HTML
+ */
+
+require_once __DIR__ . '/bootstrap.php';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    sendJSON(['error' => 'Method not allowed'], 405);
+}
+
+try {
+    // Get form data
+    $contentType = $_POST['content_type'] ?? null;
+    $title = $_POST['title'] ?? 'Untitled Content';
+    $description = $_POST['description'] ?? '';
+    $companyId = $_POST['company_id'] ?? 'default';
+
+    if (!$contentType) {
+        sendJSON(['error' => 'content_type is required'], 400);
+    }
+
+    // Generate unique content ID
+    $contentId = bin2hex(random_bytes(16));
+
+    // Handle different content types
+    switch ($contentType) {
+        case 'scorm':
+        case 'html':
+            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                sendJSON(['error' => 'File upload failed'], 400);
+            }
+
+            $file = $_FILES['file'];
+            $fileExt = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+            if ($fileExt !== 'zip') {
+                sendJSON(['error' => 'Only ZIP files are allowed for ' . $contentType], 400);
+            }
+
+            // Move uploaded file to temp location
+            $tempPath = $config['content']['upload_dir'] . 'temp_' . $contentId . '.zip';
+            if (!move_uploaded_file($file['tmp_name'], $tempPath)) {
+                sendJSON(['error' => 'Failed to save uploaded file'], 500);
+            }
+
+            // Insert content record
+            $db->insert('content', [
+                'id' => $contentId,
+                'company_id' => $companyId,
+                'title' => $title,
+                'description' => $description,
+                'content_type' => $contentType,
+                'content_url' => null // Will be set after processing
+            ]);
+
+            // Process content
+            $result = $contentProcessor->processContent($contentId, $contentType, $tempPath);
+
+            sendJSON([
+                'success' => true,
+                'content_id' => $contentId,
+                'message' => 'Content uploaded and processed successfully',
+                'tags' => $result['tags'] ?? [],
+                'path' => $result['path']
+            ]);
+            break;
+
+        case 'video':
+            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                sendJSON(['error' => 'File upload failed'], 400);
+            }
+
+            $file = $_FILES['file'];
+            $fileExt = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+            if (!in_array($fileExt, ['mp4', 'webm', 'ogg'])) {
+                sendJSON(['error' => 'Invalid video format. Allowed: mp4, webm, ogg'], 400);
+            }
+
+            // Create directory
+            $videoDir = $config['content']['upload_dir'] . $contentId . '/';
+            if (!is_dir($videoDir)) {
+                mkdir($videoDir, 0755, true);
+            }
+
+            $videoPath = $videoDir . 'video.' . $fileExt;
+            if (!move_uploaded_file($file['tmp_name'], $videoPath)) {
+                sendJSON(['error' => 'Failed to save video file'], 500);
+            }
+
+            // Insert content record
+            $db->insert('content', [
+                'id' => $contentId,
+                'company_id' => $companyId,
+                'title' => $title,
+                'description' => $description,
+                'content_type' => 'video',
+                'content_url' => $contentId . '/video.' . $fileExt
+            ]);
+
+            sendJSON([
+                'success' => true,
+                'content_id' => $contentId,
+                'message' => 'Video uploaded successfully',
+                'path' => $contentId . '/video.' . $fileExt
+            ]);
+            break;
+
+        case 'raw_html':
+            $htmlContent = $_POST['html_content'] ?? null;
+            if (!$htmlContent) {
+                sendJSON(['error' => 'html_content is required'], 400);
+            }
+
+            // Insert content record
+            $db->insert('content', [
+                'id' => $contentId,
+                'company_id' => $companyId,
+                'title' => $title,
+                'description' => $description,
+                'content_type' => 'raw_html',
+                'content_url' => null
+            ]);
+
+            // Process content
+            $result = $contentProcessor->processContent($contentId, 'raw_html', $htmlContent);
+
+            sendJSON([
+                'success' => true,
+                'content_id' => $contentId,
+                'message' => 'HTML content processed successfully',
+                'tags' => $result['tags'] ?? [],
+                'path' => $result['path']
+            ]);
+            break;
+
+        case 'email':
+            $emailHTML = $_POST['email_html'] ?? null;
+            $emailSubject = $_POST['email_subject'] ?? '';
+            $emailFrom = $_POST['email_from'] ?? '';
+
+            if (!$emailHTML) {
+                sendJSON(['error' => 'email_html is required'], 400);
+            }
+
+            // Save email HTML to temp file
+            $tempPath = $config['content']['upload_dir'] . 'temp_' . $contentId . '.html';
+            file_put_contents($tempPath, $emailHTML);
+
+            // Insert content record
+            $db->insert('content', [
+                'id' => $contentId,
+                'company_id' => $companyId,
+                'title' => $title,
+                'description' => $description,
+                'content_type' => 'email',
+                'email_subject' => $emailSubject,
+                'email_from_address' => $emailFrom,
+                'content_url' => null
+            ]);
+
+            // Process email content
+            $result = $contentProcessor->processContent($contentId, 'email', $tempPath);
+
+            // Clean up temp file
+            unlink($tempPath);
+
+            sendJSON([
+                'success' => true,
+                'content_id' => $contentId,
+                'message' => 'Email content processed successfully',
+                'cues' => $result['cues'] ?? [],
+                'path' => $result['path']
+            ]);
+            break;
+
+        default:
+            sendJSON(['error' => 'Invalid content_type'], 400);
+    }
+
+} catch (Exception $e) {
+    error_log("Upload Error: " . $e->getMessage());
+    sendJSON([
+        'error' => 'Upload failed',
+        'message' => $config['app']['debug'] ? $e->getMessage() : 'Internal server error'
+    ], 500);
+}
