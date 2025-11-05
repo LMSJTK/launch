@@ -172,9 +172,16 @@ class ContentProcessor {
         // Store cues as tags
         $this->storeTags($contentId, $result['cues'], 'phish-cue');
 
-        // Update content URL
+        // Update content URL and difficulty score
+        $updateData = ['content_url' => $contentId . '/index.php'];
+
+        // Add difficulty score if provided
+        if (isset($result['difficulty'])) {
+            $updateData['difficulty'] = (string)$result['difficulty'];
+        }
+
         $this->db->update('content',
-            ['content_url' => $contentId . '/index.php'],
+            $updateData,
             'id = :id',
             [':id' => $contentId]
         );
@@ -183,6 +190,7 @@ class ContentProcessor {
             'success' => true,
             'message' => 'Email content processed successfully',
             'cues' => $result['cues'],
+            'difficulty' => $result['difficulty'] ?? null,
             'path' => $contentId . '/index.php'
         ];
     }

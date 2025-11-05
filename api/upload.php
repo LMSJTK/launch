@@ -185,6 +185,7 @@ try {
                 'content_id' => $contentId,
                 'message' => 'Email content processed successfully',
                 'cues' => $result['cues'] ?? [],
+                'difficulty' => $result['difficulty'] ?? null,
                 'path' => $result['path']
             ]);
             break;
