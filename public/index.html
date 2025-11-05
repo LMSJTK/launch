@@ -484,6 +484,11 @@
                         message += `<br>Cues: ${result.cues.join(', ')}`;
                     }
 
+                    if (result.difficulty) {
+                        const difficultyLabels = {1: 'Least Difficult', 2: 'Moderately Difficult', 3: 'Very Difficult'};
+                        message += `<br>Difficulty: ${difficultyLabels[result.difficulty] || result.difficulty}`;
+                    }
+
                     showAlert('upload-alert', 'success', message);
                     form.reset();
                 } else {

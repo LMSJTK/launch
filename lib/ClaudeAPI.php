@@ -149,13 +149,18 @@ class ClaudeAPI {
             "2. LANGUAGE CUES: Generic greetings, urgency tactics, grammar errors, requests for sensitive info\n" .
             "3. TECHNICAL CUES: Domain spoofing, URL hyperlinking tricks, suspicious attachments\n" .
             "4. ERROR CUES: Inconsistencies, formatting issues, suspicious patterns\n\n" .
+            "NIST Phish Scale Difficulty Ratings:\n" .
+            "- Least Difficult (1): Multiple obvious red flags, amateur mistakes, very easy to detect\n" .
+            "- Moderately Difficult (2): Some red flags but requires closer inspection, decent attempt\n" .
+            "- Very Difficult (3): Sophisticated, few obvious indicators, requires expert knowledge to detect\n\n" .
             "Rules:\n" .
             "1. Add data-cue attributes to elements containing phishing indicators\n" .
             "2. Use format: data-cue=\"category:description\" (e.g., data-cue=\"language:urgency-tactic\")\n" .
             "3. Categories: visual, language, technical, error\n" .
-            "4. Return ONLY the complete modified HTML with data-cue attributes added\n" .
-            "5. Do not modify the content or structure, only add data-cue attributes\n" .
-            "6. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML";
+            "4. On the FIRST line, output: DIFFICULTY:X (where X is 1, 2, or 3)\n" .
+            "5. Then output the complete modified HTML with data-cue attributes added\n" .
+            "6. Do not modify the content or structure, only add data-cue attributes\n" .
+            "7. Do not include any other explanations, comments, or markdown formatting";
 
         if ($nistGuideContent) {
             $systemPrompt .= "\n\nReference Guide:\n" . $nistGuideContent;
@@ -164,14 +169,23 @@ class ClaudeAPI {
         $messages = [
             [
                 'role' => 'user',
-                'content' => "Add data-cue attributes to phishing indicators in this email. Return ONLY the modified HTML without any explanations or markdown:\n\n" . $emailHTML
+                'content' => "Add data-cue attributes to phishing indicators in this email and assess its difficulty level. " .
+                    "First line must be DIFFICULTY:X (1, 2, or 3), then the modified HTML:\n\n" . $emailHTML
             ]
         ];
 
-        $taggedHTML = $this->sendRequest($messages, $systemPrompt);
+        $response = $this->sendRequest($messages, $systemPrompt);
+
+        // Extract difficulty score from first line
+        $difficulty = 2; // Default to moderate
+        if (preg_match('/^DIFFICULTY:\s*(\d+)/i', $response, $diffMatch)) {
+            $difficulty = intval($diffMatch[1]);
+            // Remove the difficulty line from response
+            $response = preg_replace('/^DIFFICULTY:\s*\d+\s*\n?/i', '', $response);
+        }
 
         // Strip any markdown code blocks and explanatory text
-        $taggedHTML = $this->stripMarkdownCodeBlocks($taggedHTML);
+        $taggedHTML = $this->stripMarkdownCodeBlocks($response);
         $taggedHTML = $this->extractHTMLOnly($taggedHTML);
 
         // Extract cues that were added
@@ -180,7 +194,8 @@ class ClaudeAPI {
 
         return [
             'html' => $taggedHTML,
-            'cues' => $cues
+            'cues' => $cues,
+            'difficulty' => $difficulty
         ];
     }
 
