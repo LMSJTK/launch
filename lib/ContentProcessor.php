@@ -271,6 +271,7 @@ class ContentProcessor {
      * Store tags in database
      */
     private function storeTags($contentId, $tags, $tagType = 'interaction') {
+        // Store in content_tags table (structured data for queries)
         foreach ($tags as $tag) {
             try {
                 $this->db->insert('content_tags', [
@@ -284,6 +285,21 @@ class ContentProcessor {
                 if (strpos($e->getMessage(), 'duplicate') === false) {
                     throw $e;
                 }
+            }
+        }
+
+        // Also store in content.tags field (comma-separated for compatibility)
+        if (!empty($tags)) {
+            $tagsString = implode(', ', $tags);
+            try {
+                $this->db->update('content',
+                    ['tags' => $tagsString],
+                    'id = :id',
+                    [':id' => $contentId]
+                );
+            } catch (Exception $e) {
+                // Column might not exist yet, log but don't fail
+                error_log("Warning: Could not update content.tags field: " . $e->getMessage());
             }
         }
     }
