@@ -89,11 +89,12 @@ class ContentProcessor {
         $modifiedHTML = $result['html'];
 
         // Inject base tag for relative URLs to work correctly
+        // IMPORTANT: Base tag must be first in <head> to affect all relative URLs
         $baseTag = "<base href=\"{$this->basePath}/content/{$contentId}/\">";
-        if (stripos($modifiedHTML, '</head>') !== false) {
-            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
-        } elseif (stripos($modifiedHTML, '<head>') !== false) {
+        if (stripos($modifiedHTML, '<head>') !== false) {
             $modifiedHTML = preg_replace('/<head>/i', "<head>\n" . $baseTag, $modifiedHTML, 1);
+        } elseif (stripos($modifiedHTML, '</head>') !== false) {
+            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
         }
 
         // Inject tracking script before </body>
@@ -151,11 +152,12 @@ class ContentProcessor {
         $modifiedHTML = $result['html'];
 
         // Inject base tag for relative URLs to work correctly
+        // IMPORTANT: Base tag must be first in <head> to affect all relative URLs
         $baseTag = "<base href=\"{$this->basePath}/content/{$contentId}/\">";
-        if (stripos($modifiedHTML, '</head>') !== false) {
-            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
-        } elseif (stripos($modifiedHTML, '<head>') !== false) {
+        if (stripos($modifiedHTML, '<head>') !== false) {
             $modifiedHTML = preg_replace('/<head>/i', "<head>\n" . $baseTag, $modifiedHTML, 1);
+        } elseif (stripos($modifiedHTML, '</head>') !== false) {
+            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
         }
 
         // Inject tracking script
@@ -205,11 +207,12 @@ class ContentProcessor {
         $modifiedHTML = $result['html'];
 
         // Inject base tag for relative URLs to work correctly
+        // IMPORTANT: Base tag must be first in <head> to affect all relative URLs
         $baseTag = "<base href=\"{$this->basePath}/content/{$contentId}/\">";
-        if (stripos($modifiedHTML, '</head>') !== false) {
-            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
-        } elseif (stripos($modifiedHTML, '<head>') !== false) {
+        if (stripos($modifiedHTML, '<head>') !== false) {
             $modifiedHTML = preg_replace('/<head>/i', "<head>\n" . $baseTag, $modifiedHTML, 1);
+        } elseif (stripos($modifiedHTML, '</head>') !== false) {
+            $modifiedHTML = preg_replace('/<\/head>/i', $baseTag . "\n</head>", $modifiedHTML, 1);
         }
 
         // Inject tracking script
