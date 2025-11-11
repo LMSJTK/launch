@@ -7,12 +7,13 @@
 return [
     // Database Configuration
     'database' => [
+        'type' => 'pgsql', // 'pgsql' for PostgreSQL or 'mysql' for MySQL
         'host' => 'localhost',
-        'port' => '5432',
+        'port' => '5432', // 5432 for PostgreSQL, 3306 for MySQL
         'dbname' => 'your_database_name',
         'username' => 'your_db_username',
         'password' => 'your_db_password',
-        'schema' => 'global'
+        'schema' => 'global' // PostgreSQL schema (ignored for MySQL)
     ],
 
     // Claude API Configuration

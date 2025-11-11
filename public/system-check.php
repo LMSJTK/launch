@@ -15,11 +15,14 @@ echo "---\n\n";
 
 // Check required extensions
 echo "Required PHP Extensions:\n";
-$required_extensions = ['pdo', 'pdo_pgsql', 'zip', 'json', 'curl'];
+$required_extensions = ['pdo', 'zip', 'json', 'curl'];
 foreach ($required_extensions as $ext) {
     $loaded = extension_loaded($ext);
     echo "  - {$ext}: " . ($loaded ? "✓ INSTALLED" : "✗ MISSING") . "\n";
 }
+// Check database-specific extensions
+echo "  - pdo_pgsql: " . (extension_loaded('pdo_pgsql') ? "✓ INSTALLED" : "✗ MISSING") . " (for PostgreSQL)\n";
+echo "  - pdo_mysql: " . (extension_loaded('pdo_mysql') ? "✓ INSTALLED" : "✗ MISSING") . " (for MySQL)\n";
 echo "\n";
 
 // Check config file
@@ -32,6 +35,7 @@ if (file_exists($configPath)) {
     try {
         $config = require $configPath;
         echo "  - Config loaded successfully\n";
+        echo "  - Database type: " . ($config['database']['type'] ?? 'pgsql (default)') . "\n";
         echo "  - Database host: " . ($config['database']['host'] ?? 'NOT SET') . "\n";
         echo "  - Database name: " . ($config['database']['dbname'] ?? 'NOT SET') . "\n";
         echo "  - Content upload dir: " . ($config['content']['upload_dir'] ?? 'NOT SET') . "\n";
@@ -68,10 +72,17 @@ if (file_exists($configPath)) {
         $result = $db->fetchOne("SELECT NOW() as current_time");
         echo "  - Query test: ✓ SUCCESS (Server time: " . $result['current_time'] . ")\n";
 
-        // Check if content table exists
-        $tables = $db->fetchAll("SELECT tablename FROM pg_tables WHERE schemaname = :schema", [
-            ':schema' => $config['database']['schema'] ?? 'global'
-        ]);
+        // Check if content table exists (database-specific queries)
+        $dbType = $db->getDbType();
+        if ($dbType === 'mysql') {
+            $tables = $db->fetchAll("SELECT table_name as tablename FROM information_schema.tables WHERE table_schema = :dbname", [
+                ':dbname' => $config['database']['dbname']
+            ]);
+        } else {
+            $tables = $db->fetchAll("SELECT tablename FROM pg_tables WHERE schemaname = :schema", [
+                ':schema' => $config['database']['schema'] ?? 'global'
+            ]);
+        }
         $tableNames = array_column($tables, 'tablename');
         echo "  - Tables found: " . count($tableNames) . "\n";
 

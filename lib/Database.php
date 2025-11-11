@@ -1,13 +1,14 @@
 <?php
 /**
  * Database Connection Class
- * Handles PDO connection to PostgreSQL database
+ * Handles PDO connection to PostgreSQL or MySQL database
  */
 
 class Database {
     private static $instance = null;
     private $pdo;
     private $config;
+    private $dbType;
 
     private function __construct($config) {
         $this->config = $config;
@@ -32,12 +33,26 @@ class Database {
      */
     private function connect() {
         try {
-            $dsn = sprintf(
-                "pgsql:host=%s;port=%s;dbname=%s",
-                $this->config['host'],
-                $this->config['port'],
-                $this->config['dbname']
-            );
+            // Default to PostgreSQL if type not specified
+            $this->dbType = isset($this->config['type']) ? $this->config['type'] : 'pgsql';
+
+            // Build DSN based on database type
+            if ($this->dbType === 'mysql') {
+                $dsn = sprintf(
+                    "mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4",
+                    $this->config['host'],
+                    $this->config['port'],
+                    $this->config['dbname']
+                );
+            } else {
+                // PostgreSQL
+                $dsn = sprintf(
+                    "pgsql:host=%s;port=%s;dbname=%s",
+                    $this->config['host'],
+                    $this->config['port'],
+                    $this->config['dbname']
+                );
+            }
 
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -52,8 +67,8 @@ class Database {
                 $options
             );
 
-            // Set search path to use the correct schema
-            if (isset($this->config['schema'])) {
+            // Set search path to use the correct schema (PostgreSQL only)
+            if ($this->dbType === 'pgsql' && isset($this->config['schema'])) {
                 $this->pdo->exec("SET search_path TO " . $this->config['schema']);
             }
 
@@ -67,6 +82,13 @@ class Database {
      */
     public function getPDO() {
         return $this->pdo;
+    }
+
+    /**
+     * Get database type
+     */
+    public function getDbType() {
+        return $this->dbType;
     }
 
     /**
@@ -114,9 +136,13 @@ class Database {
 
         $params = [];
         foreach ($data as $key => $value) {
-            // Convert boolean values to PostgreSQL format
+            // Convert boolean values based on database type
             if (is_bool($value)) {
-                $params[':' . $key] = $value ? 'true' : 'false';
+                if ($this->dbType === 'mysql') {
+                    $params[':' . $key] = $value ? 1 : 0;
+                } else {
+                    $params[':' . $key] = $value ? 'true' : 'false';
+                }
             } else {
                 $params[':' . $key] = $value;
             }
@@ -153,9 +179,13 @@ class Database {
 
         $params = [];
         foreach ($data as $key => $value) {
-            // Convert boolean values to PostgreSQL format
+            // Convert boolean values based on database type
             if (is_bool($value)) {
-                $params[':' . $key] = $value ? 'true' : 'false';
+                if ($this->dbType === 'mysql') {
+                    $params[':' . $key] = $value ? 1 : 0;
+                } else {
+                    $params[':' . $key] = $value ? 'true' : 'false';
+                }
             } else {
                 $params[':' . $key] = $value;
             }
