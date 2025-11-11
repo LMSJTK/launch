@@ -26,7 +26,8 @@ A vanilla PHP platform for managing SCORM/HTML content with Claude AI-powered ta
 │   └── config.php         # Actual config (not in git)
 ├── content/               # Uploaded content storage
 ├── database/              # Database schemas
-│   └── schema.sql        # PostgreSQL schema
+│   ├── schema.sql        # PostgreSQL schema
+│   └── schema.mysql.sql  # MySQL schema
 ├── lib/                   # Core libraries
 │   ├── Database.php      # PDO database connection
 │   ├── ClaudeAPI.php     # Claude API integration
@@ -45,14 +46,24 @@ A vanilla PHP platform for managing SCORM/HTML content with Claude AI-powered ta
 ## Setup
 
 1. **Database Setup**:
+
+   The platform supports both **PostgreSQL** and **MySQL**. See [DATABASE.md](DATABASE.md) for detailed setup instructions.
+
+   **PostgreSQL** (recommended):
    ```bash
    psql -U your_username -d your_database -f database/schema.sql
+   ```
+
+   **MySQL**:
+   ```bash
+   mysql -u your_username -p your_database < database/schema.mysql.sql
    ```
 
 2. **Configuration**:
    ```bash
    cp config/config.example.php config/config.php
    # Edit config/config.php with your credentials
+   # Set 'type' to 'pgsql' or 'mysql' in the database config
    ```
 
 3. **Permissions**:
@@ -128,9 +139,11 @@ The monitor shows:
 ## Requirements
 
 - PHP 7.4+
-- PostgreSQL 12+
-- PHP Extensions: pdo, pdo_pgsql, zip, json, curl
-- AWS Account (for SNS)
+- **Database**: PostgreSQL 12+ OR MySQL 5.7+ / MariaDB 10.3+
+- **PHP Extensions**: pdo, zip, json, curl
+  - For PostgreSQL: pdo_pgsql
+  - For MySQL: pdo_mysql
+- AWS Account (for SNS integration)
 - Claude API Key (Anthropic)
 
 ## License
