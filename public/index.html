@@ -494,14 +494,14 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    let message = `Content uploaded successfully! ID: ${result.content_id}`;
+                    let message = `Content uploaded successfully! ID: ${escapeHtml(result.content_id)}`;
 
                     if (result.tags && Array.isArray(result.tags) && result.tags.length > 0) {
-                        message += `<br>Tags: ${result.tags.join(', ')}`;
+                        message += `<br>Tags: ${result.tags.map(t => escapeHtml(t)).join(', ')}`;
                     }
 
                     if (result.cues && Array.isArray(result.cues) && result.cues.length > 0) {
-                        message += `<br>Cues: ${result.cues.join(', ')}`;
+                        message += `<br>Cues: ${result.cues.map(c => escapeHtml(c)).join(', ')}`;
                     }
 
                     if (result.difficulty) {
@@ -511,20 +511,20 @@
 
                     if (result.attachment_filename) {
                         const sizeKB = Math.round(result.attachment_size / 1024);
-                        message += `<br>Attachment: ${result.attachment_filename} (${sizeKB} KB)`;
+                        message += `<br>Attachment: ${escapeHtml(result.attachment_filename)} (${sizeKB} KB)`;
                     }
 
                     if (result.preview_url) {
-                        message += `<br><a href="${result.preview_url}" target="_blank" style="color: #fff; text-decoration: underline;">Preview Content</a>`;
+                        message += `<br><a href="${escapeHtml(result.preview_url)}" target="_blank" style="color: #fff; text-decoration: underline;">Preview Content</a>`;
                     }
 
                     showAlert('upload-alert', 'success', message);
                     form.reset();
                 } else {
-                    showAlert('upload-alert', 'error', result.error || 'Upload failed');
+                    showAlert('upload-alert', 'error', escapeHtml(result.error) || 'Upload failed');
                 }
             } catch (error) {
-                showAlert('upload-alert', 'error', 'Upload failed: ' + error.message);
+                showAlert('upload-alert', 'error', 'Upload failed: ' + escapeHtml(error.message));
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = formType === 'video' ? 'Upload Video' : 'Upload and Process';
@@ -545,13 +545,13 @@
                     contentList.innerHTML = result.content.map(item => `
                         <div class="content-item">
                             <div class="content-info">
-                                <h3>${item.title}</h3>
-                                <p>Type: ${item.content_type} | ID: ${item.id}${item.difficulty ? ` | Difficulty: ${item.difficulty}` : ''}</p>
-                                ${item.tags ? `<div class="tags">${item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>` : ''}
+                                <h3>${escapeHtml(item.title)}</h3>
+                                <p>Type: ${escapeHtml(item.content_type)} | ID: ${escapeHtml(item.id)}${item.difficulty ? ` | Difficulty: ${escapeHtml(item.difficulty)}` : ''}</p>
+                                ${item.tags ? `<div class="tags">${item.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
                             </div>
                             <div class="content-actions">
-                                <button onclick="copyToClipboard('${item.id}')">Copy ID</button>
-                                ${item.content_preview ? `<button onclick="window.open('${item.content_preview}', '_blank')">Preview</button>` : ''}
+                                <button onclick="copyToClipboard('${escapeHtml(item.id)}')">Copy ID</button>
+                                ${item.content_preview ? `<button onclick="window.open('${escapeHtml(item.content_preview)}', '_blank')">Preview</button>` : ''}
                             </div>
                         </div>
                     `).join('');
@@ -560,7 +560,7 @@
                 }
             } catch (error) {
                 contentList.innerHTML = '<div class="loading">Failed to load content</div>';
-                showAlert('manage-alert', 'error', 'Failed to load content: ' + error.message);
+                showAlert('manage-alert', 'error', 'Failed to load content: ' + escapeHtml(error.message));
             }
         }
 
@@ -591,10 +591,10 @@
                     document.getElementById('launch-result').style.display = 'block';
                     showAlert('launch-alert', 'success', 'Launch link generated successfully!');
                 } else {
-                    showAlert('launch-alert', 'error', result.error || 'Failed to generate launch link');
+                    showAlert('launch-alert', 'error', escapeHtml(result.error) || 'Failed to generate launch link');
                 }
             } catch (error) {
-                showAlert('launch-alert', 'error', 'Failed to generate launch link: ' + error.message);
+                showAlert('launch-alert', 'error', 'Failed to generate launch link: ' + escapeHtml(error.message));
             }
         }
 
@@ -606,6 +606,17 @@
 
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text);
+        }
+
+        // HTML escape function to prevent XSS
+        function escapeHtml(unsafe) {
+            if (unsafe === null || unsafe === undefined) return '';
+            return String(unsafe)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
 
         function showAlert(elementId, type, message) {
