@@ -14,8 +14,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 try {
-    // Get all content
-    $content = $db->fetchAll('SELECT * FROM content ORDER BY created_at DESC');
+    // Get all content (excluding binary attachment content to avoid JSON encoding issues)
+    $content = $db->fetchAll('
+        SELECT id, company_id, title, description, content_type, content_preview,
+               content_url, email_from_address, email_subject, email_body_html,
+               email_attachment_filename, tags, difficulty, created_at, updated_at
+        FROM content
+        ORDER BY created_at DESC
+    ');
 
     // For each content item, get its tags
     foreach ($content as &$item) {
