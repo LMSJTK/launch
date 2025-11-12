@@ -364,21 +364,37 @@ class ContentProcessor {
 
         foreach ($patterns as $pattern) {
             if (preg_match_all($pattern, $html, $matches)) {
-                foreach ($matches[1] as $path) {
+                foreach ($matches[1] as $fullPath) {
+                    // Separate path from query string
+                    $parts = explode('?', $fullPath, 2);
+                    $pathOnly = $parts[0];
+                    $queryString = isset($parts[1]) ? '?' . $parts[1] : '';
+
                     // Validate path to prevent directory traversal
-                    if ($this->isValidSystemPath($path, $contentDir)) {
-                        $assetsToDownload[$path] = true; // Use array key to avoid duplicates
+                    if ($this->isValidSystemPath($pathOnly, $contentDir)) {
+                        // Store both the full path (with query) for download and path-only for filesystem
+                        $assetsToDownload[$fullPath] = [
+                            'fullPath' => $fullPath,
+                            'pathOnly' => $pathOnly,
+                            'queryString' => $queryString
+                        ];
                     } else {
-                        error_log("Rejected invalid system path (directory traversal attempt): $path");
+                        error_log("Rejected invalid system path (directory traversal attempt): $pathOnly");
                     }
                 }
             }
         }
 
         // Download each unique asset
-        foreach (array_keys($assetsToDownload) as $assetPath) {
-            $fullUrl = $baseUrl . $assetPath;
-            $localPath = $contentDir . ltrim($assetPath, '/');
+        foreach ($assetsToDownload as $asset) {
+            $fullPath = $asset['fullPath'];
+            $pathOnly = $asset['pathOnly'];
+
+            // Use full path (with query string) for download URL
+            $fullUrl = $baseUrl . $fullPath;
+
+            // Use path only (without query string) for local filesystem
+            $localPath = $contentDir . ltrim($pathOnly, '/');
 
             // Create directory structure
             $localDir = dirname($localPath);
@@ -396,26 +412,30 @@ class ContentProcessor {
             exec($command, $output, $returnCode);
 
             if ($returnCode === 0) {
-                error_log("Downloaded asset: $assetPath from $fullUrl");
+                error_log("Downloaded asset: $fullPath from $fullUrl");
             } else {
-                error_log("Failed to download asset: $assetPath from $fullUrl (exit code: $returnCode)");
+                error_log("Failed to download asset: $fullPath from $fullUrl (exit code: $returnCode)");
                 // Continue with other assets even if one fails
             }
         }
 
         // Update HTML references to point to the new local location
         // Replace /system/... with {basePath}/content/{contentId}/system/...
-        foreach (array_keys($assetsToDownload) as $assetPath) {
-            $newPath = $this->basePath . '/content/' . $contentId . $assetPath;
+        foreach ($assetsToDownload as $asset) {
+            $fullPath = $asset['fullPath'];
+            $pathOnly = $asset['pathOnly'];
 
-            // Replace in various contexts
-            $html = str_replace('src="' . $assetPath . '"', 'src="' . $newPath . '"', $html);
-            $html = str_replace("src='" . $assetPath . "'", "src='" . $newPath . "'", $html);
-            $html = str_replace('href="' . $assetPath . '"', 'href="' . $newPath . '"', $html);
-            $html = str_replace("href='" . $assetPath . "'", "href='" . $newPath . "'", $html);
-            $html = str_replace('url(' . $assetPath . ')', 'url(' . $newPath . ')', $html);
-            $html = str_replace('url("' . $assetPath . '")', 'url("' . $newPath . '")', $html);
-            $html = str_replace("url('" . $assetPath . "')", "url('" . $newPath . "')", $html);
+            // New path points to local file (without query string since file is local)
+            $newPath = $this->basePath . '/content/' . $contentId . $pathOnly;
+
+            // Replace the full original path (with query string) with new local path (without query string)
+            $html = str_replace('src="' . $fullPath . '"', 'src="' . $newPath . '"', $html);
+            $html = str_replace("src='" . $fullPath . "'", "src='" . $newPath . "'", $html);
+            $html = str_replace('href="' . $fullPath . '"', 'href="' . $newPath . '"', $html);
+            $html = str_replace("href='" . $fullPath . "'", "href='" . $newPath . "'", $html);
+            $html = str_replace('url(' . $fullPath . ')', 'url(' . $newPath . ')', $html);
+            $html = str_replace('url("' . $fullPath . '")', 'url("' . $newPath . '")', $html);
+            $html = str_replace("url('" . $fullPath . "')", "url('" . $newPath . "')", $html);
         }
 
         return $html;
@@ -423,6 +443,7 @@ class ContentProcessor {
 
     /**
      * Validate that a system path is safe and doesn't contain directory traversal
+     * Note: Path should not include query strings - they should be stripped before validation
      */
     private function isValidSystemPath($path, $contentDir) {
         // Must start with /system/
@@ -463,7 +484,8 @@ class ContentProcessor {
             }
         }
 
-        // Additional check: ensure path only contains safe characters
+        // Additional check: ensure path only contains safe filesystem characters
+        // This validates the path portion only (query strings should be stripped before calling)
         if (!preg_match('/^\/system\/[a-zA-Z0-9\/_.\-]+$/', $path)) {
             return false;
         }
