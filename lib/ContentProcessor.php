@@ -218,6 +218,7 @@ class ContentProcessor {
     private function processRawHTML($contentId, $htmlContent) {
         // Tag content with Claude API
         $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'general');
+        $modifiedHTML = $result['html'];
 
         // Create directory
         $extractPath = $this->contentDir . $contentId . '/';
@@ -225,11 +226,13 @@ class ContentProcessor {
             mkdir($extractPath, 0755, true);
         }
 
+        // Download any /system assets referenced in the HTML
+        $this->downloadSystemAssets($modifiedHTML, $extractPath);
+
         $phpPath = $extractPath . 'index.php';
 
         // Add tracking script
         $trackingScript = "<?php \$trackingLinkId = \$_GET['tid'] ?? 'unknown'; ?>\n";
-        $modifiedHTML = $result['html'];
 
         // Inject base tag for relative URLs to work correctly
         // IMPORTANT: Base tag must be first in <head> to affect all relative URLs
@@ -340,5 +343,60 @@ class ContentProcessor {
             'SELECT * FROM content_tags WHERE content_id = :content_id',
             [':content_id' => $contentId]
         );
+    }
+
+    /**
+     * Download system assets referenced in HTML
+     * Finds references to /system paths and downloads them from https://login.phishme.com
+     */
+    private function downloadSystemAssets($html, $contentDir) {
+        $baseUrl = 'https://login.phishme.com';
+
+        // Find all references to /system paths in common HTML attributes
+        $patterns = [
+            '/src=["\']?(\/system\/[^"\'\s>]+)["\'\s>]/i',
+            '/href=["\']?(\/system\/[^"\'\s>]+)["\'\s>]/i',
+            '/url\(["\']?(\/system\/[^"\'\)]+)["\'\)]/i' // CSS url() references
+        ];
+
+        $assetsToDownload = [];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match_all($pattern, $html, $matches)) {
+                foreach ($matches[1] as $path) {
+                    $assetsToDownload[$path] = true; // Use array key to avoid duplicates
+                }
+            }
+        }
+
+        // Download each unique asset
+        foreach (array_keys($assetsToDownload) as $assetPath) {
+            $fullUrl = $baseUrl . $assetPath;
+            $localPath = $contentDir . ltrim($assetPath, '/');
+
+            // Create directory structure
+            $localDir = dirname($localPath);
+            if (!is_dir($localDir)) {
+                mkdir($localDir, 0755, true);
+            }
+
+            // Download file using wget (with timeout and error handling)
+            $escapedUrl = escapeshellarg($fullUrl);
+            $escapedPath = escapeshellarg($localPath);
+
+            // Use wget with: timeout, follow redirects, quiet mode, overwrite existing
+            $command = "wget --timeout=10 --tries=2 -q -O $escapedPath $escapedUrl 2>&1";
+
+            exec($command, $output, $returnCode);
+
+            if ($returnCode === 0) {
+                error_log("Downloaded asset: $assetPath from $fullUrl");
+            } else {
+                error_log("Failed to download asset: $assetPath from $fullUrl (exit code: $returnCode)");
+                // Continue with other assets even if one fails
+            }
+        }
+
+        return count($assetsToDownload);
     }
 }
