@@ -10,6 +10,31 @@ Replace `http://localhost` with your actual base URL:
 API_BASE="http://localhost/api"
 ```
 
+## Authentication
+
+Some API endpoints require bearer token authentication (configured in `config/config.php`). Set your token:
+
+```bash
+BEARER_TOKEN="your_secure_random_token_here"
+```
+
+**Protected Endpoints (require bearer token):**
+- `/upload.php` - Content uploads
+- `/list-content.php` - Content listing
+- `/launch-link.php` - Tracking link generation
+
+**Public Endpoints (no authentication):**
+- `/record-score.php` - Score recording (called by end users)
+- `/track-interaction.php` - Interaction tracking (called by end users)
+- `/track-view.php` - View tracking (called by end users)
+- `/sns-messages.php` - SNS webhook receiver
+
+For protected endpoints, include the Authorization header:
+
+```bash
+-H "Authorization: Bearer ${BEARER_TOKEN}"
+```
+
 ## Upload Landing Page
 
 Landing pages are HTML content designated for use as landing pages (e.g., after clicking email links).
@@ -18,6 +43,7 @@ Landing pages are HTML content designated for use as landing pages (e.g., after 
 
 ```bash
 curl -X POST "${API_BASE}/upload.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
   -F "content_type=landing" \
   -F "title=Welcome Landing Page" \
   -F "description=Landing page for campaign" \
@@ -38,6 +64,7 @@ curl -X POST "${API_BASE}/upload.php" \
 
 ```bash
 curl -X POST "${API_BASE}/upload.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
   -F "content_type=landing" \
   -F "title=Training Complete" \
   -F "description=Success landing page" \
@@ -60,8 +87,11 @@ curl -X POST "${API_BASE}/upload.php" \
 
 ## Upload Email (Phishing Training)
 
+### Example 1: Email without Attachment
+
 ```bash
 curl -X POST "${API_BASE}/upload.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
   -F "content_type=email" \
   -F "title=Phishing Test - Fake Invoice" \
   -F "description=Invoice phishing simulation" \
@@ -78,6 +108,29 @@ curl -X POST "${API_BASE}/upload.php" \
 </html>"
 ```
 
+### Example 2: Email with Attachment
+
+```bash
+curl -X POST "${API_BASE}/upload.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
+  -F "content_type=email" \
+  -F "title=Phishing Test - Fake Invoice with PDF" \
+  -F "description=Invoice phishing simulation with malicious attachment" \
+  -F "company_id=acme-corp" \
+  -F "email_subject=Urgent: Invoice Payment Required" \
+  -F "email_from=billing@fake-company.com" \
+  -F "email_html=<!DOCTYPE html>
+<html>
+<head><title>Invoice</title></head>
+<body>
+    <p>Dear Customer,</p>
+    <p>Please see the attached invoice for payment.</p>
+    <p>Click here to download: <a href='http://malicious.com'>Download Invoice</a></p>
+</body>
+</html>" \
+  -F "attachment=@/path/to/fake_invoice.pdf"
+```
+
 ### Response Format
 
 ```json
@@ -88,7 +141,9 @@ curl -X POST "${API_BASE}/upload.php" \
   "cues": ["urgent-language", "suspicious-link", "unknown-sender"],
   "difficulty": 2,
   "path": "a1b2c3d4e5f6.../index.php",
-  "preview_url": "http://localhost/public/launch.php?tid=preview_tracking_id"
+  "preview_url": "http://localhost/public/launch.php?tid=preview_tracking_id",
+  "attachment_filename": "fake_invoice.pdf",
+  "attachment_size": 45678
 }
 ```
 
@@ -96,6 +151,7 @@ curl -X POST "${API_BASE}/upload.php" \
 
 ```bash
 curl -X POST "${API_BASE}/upload.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
   -F "content_type=scorm" \
   -F "title=Security Awareness Training" \
   -F "description=Interactive SCORM course" \
@@ -107,6 +163,7 @@ curl -X POST "${API_BASE}/upload.php" \
 
 ```bash
 curl -X POST "${API_BASE}/upload.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
   -F "content_type=html" \
   -F "title=Interactive HTML Training" \
   -F "description=HTML5 based training module" \
@@ -118,6 +175,7 @@ curl -X POST "${API_BASE}/upload.php" \
 
 ```bash
 curl -X POST "${API_BASE}/upload.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
   -F "content_type=raw_html" \
   -F "title=Simple HTML Page" \
   -F "description=Basic HTML content" \
@@ -133,6 +191,7 @@ curl -X POST "${API_BASE}/upload.php" \
 
 ```bash
 curl -X POST "${API_BASE}/upload.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
   -F "content_type=video" \
   -F "title=Security Training Video" \
   -F "description=Introduction to cybersecurity" \
@@ -146,6 +205,7 @@ After uploading content, create a launch link for a recipient:
 
 ```bash
 curl -X POST "${API_BASE}/launch-link.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
     "recipient_id": "user123",
@@ -175,7 +235,8 @@ curl -X POST "${API_BASE}/launch-link.php" \
 ## List All Content
 
 ```bash
-curl -X GET "${API_BASE}/list-content.php"
+curl -X GET "${API_BASE}/list-content.php" \
+  -H "Authorization: Bearer ${BEARER_TOKEN}"
 ```
 
 ### Response Format
