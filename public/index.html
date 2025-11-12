@@ -292,6 +292,7 @@
                     <option value="scorm">SCORM Package (ZIP)</option>
                     <option value="html">HTML Package (ZIP)</option>
                     <option value="raw_html">Raw HTML (Textarea)</option>
+                    <option value="landing">Landing Page (HTML)</option>
                     <option value="email">Email (Phishing Training)</option>
                     <option value="video">Video (MP4)</option>
                 </select>
@@ -444,7 +445,7 @@
             // Show appropriate form
             if (contentType === 'scorm' || contentType === 'html') {
                 document.getElementById('upload-form-zip').style.display = 'block';
-            } else if (contentType === 'raw_html') {
+            } else if (contentType === 'raw_html' || contentType === 'landing') {
                 document.getElementById('upload-form-raw').style.display = 'block';
             } else if (contentType === 'email') {
                 document.getElementById('upload-form-email').style.display = 'block';

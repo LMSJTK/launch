@@ -195,6 +195,38 @@ try {
             ]);
             break;
 
+        case 'landing':
+            $htmlContent = $_POST['html_content'] ?? null;
+            if (!$htmlContent) {
+                sendJSON(['error' => 'html_content is required'], 400);
+            }
+
+            // Insert content record
+            $db->insert('content', [
+                'id' => $contentId,
+                'company_id' => $companyId,
+                'title' => $title,
+                'description' => $description,
+                'content_type' => 'landing',
+                'content_url' => null
+            ]);
+
+            // Process landing page content (similar to raw_html but designated as landing)
+            $result = $contentProcessor->processContent($contentId, 'landing', $htmlContent);
+
+            // Generate preview link
+            $previewUrl = generatePreviewLink($contentId, $db, $trackingManager, $config);
+
+            sendJSON([
+                'success' => true,
+                'content_id' => $contentId,
+                'message' => 'Landing page processed successfully',
+                'tags' => $result['tags'] ?? [],
+                'path' => $result['path'],
+                'preview_url' => $previewUrl
+            ]);
+            break;
+
         case 'email':
             $emailHTML = $_POST['email_html'] ?? null;
             $emailSubject = $_POST['email_subject'] ?? '';
