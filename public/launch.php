@@ -101,6 +101,7 @@ try {
         case 'scorm':
         case 'html':
         case 'raw_html':
+        case 'landing':
         case 'email':
             // Display HTML/SCORM content via iframe or direct include
             $contentPath = $config['content']['upload_dir'] . $contentUrl;
