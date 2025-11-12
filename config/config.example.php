@@ -51,6 +51,12 @@ return [
         'timezone' => 'UTC'
     ],
 
+    // API Authentication
+    'api' => [
+        'bearer_token' => 'your_secure_random_token_here', // Generate a secure random token
+        'enabled' => true // Set to false to disable authentication (not recommended for production)
+    ],
+
     // SCORM Settings
     'scorm' => [
         'passing_score' => 80
