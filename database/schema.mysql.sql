@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS content
     email_body_html LONGTEXT,
     email_attachment_filename VARCHAR(255),
     email_attachment_content LONGBLOB,
+    tags TEXT, -- Comma-separated list of tags for quick display
+    difficulty VARCHAR(10), -- NIST Phish Scales difficulty score (1-5)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
