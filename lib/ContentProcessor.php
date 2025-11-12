@@ -365,7 +365,12 @@ class ContentProcessor {
         foreach ($patterns as $pattern) {
             if (preg_match_all($pattern, $html, $matches)) {
                 foreach ($matches[1] as $path) {
-                    $assetsToDownload[$path] = true; // Use array key to avoid duplicates
+                    // Validate path to prevent directory traversal
+                    if ($this->isValidSystemPath($path, $contentDir)) {
+                        $assetsToDownload[$path] = true; // Use array key to avoid duplicates
+                    } else {
+                        error_log("Rejected invalid system path (directory traversal attempt): $path");
+                    }
                 }
             }
         }
@@ -414,5 +419,55 @@ class ContentProcessor {
         }
 
         return $html;
+    }
+
+    /**
+     * Validate that a system path is safe and doesn't contain directory traversal
+     */
+    private function isValidSystemPath($path, $contentDir) {
+        // Must start with /system/
+        if (strpos($path, '/system/') !== 0) {
+            return false;
+        }
+
+        // Remove leading slash for path construction
+        $relativePath = ltrim($path, '/');
+
+        // Check for directory traversal sequences
+        if (strpos($relativePath, '..') !== false) {
+            return false;
+        }
+
+        // Construct the full path
+        $fullPath = $contentDir . $relativePath;
+
+        // Normalize the path to resolve any . or .. segments
+        $realContentDir = realpath($contentDir);
+
+        // If directory doesn't exist yet, check parent directories
+        $pathToCheck = $fullPath;
+        while (!file_exists($pathToCheck)) {
+            $parent = dirname($pathToCheck);
+            if ($parent === $pathToCheck) {
+                // Reached root without finding existing path
+                break;
+            }
+            $pathToCheck = $parent;
+        }
+
+        if (file_exists($pathToCheck)) {
+            $resolvedPath = realpath($pathToCheck);
+            // Ensure the resolved path is within the content directory
+            if ($resolvedPath === false || strpos($resolvedPath, $realContentDir) !== 0) {
+                return false;
+            }
+        }
+
+        // Additional check: ensure path only contains safe characters
+        if (!preg_match('/^\/system\/[a-zA-Z0-9\/_.\-]+$/', $path)) {
+            return false;
+        }
+
+        return true;
     }
 }
