@@ -515,7 +515,7 @@
                         <div class="content-item">
                             <div class="content-info">
                                 <h3>${item.title}</h3>
-                                <p>Type: ${item.content_type} | ID: ${item.id}</p>
+                                <p>Type: ${item.content_type} | ID: ${item.id}${item.difficulty ? ` | Difficulty: ${item.difficulty}` : ''}</p>
                                 ${item.tags ? `<div class="tags">${item.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>` : ''}
                             </div>
                             <div class="content-actions">
