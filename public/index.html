@@ -421,6 +421,18 @@
         }
         const API_BASE = basePath + '/api';
 
+        // API Configuration
+        // Set your bearer token from config/config.php here
+        const BEARER_TOKEN = 'your_secure_random_token_here';
+
+        // Helper function to get headers with bearer token
+        function getAuthHeaders(additionalHeaders = {}) {
+            return {
+                'Authorization': 'Bearer ' + BEARER_TOKEN,
+                ...additionalHeaders
+            };
+        }
+
         function switchTab(tabName) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
@@ -471,6 +483,7 @@
 
                 const response = await fetch(API_BASE + '/upload.php', {
                     method: 'POST',
+                    headers: getAuthHeaders(),
                     body: formData
                 });
 
@@ -514,7 +527,9 @@
             contentList.innerHTML = '<div class="loading">Loading content...</div>';
 
             try {
-                const response = await fetch(API_BASE + '/list-content.php');
+                const response = await fetch(API_BASE + '/list-content.php', {
+                    headers: getAuthHeaders()
+                });
                 const result = await response.json();
 
                 if (result.success && result.content.length > 0) {
@@ -550,7 +565,7 @@
             try {
                 const response = await fetch(API_BASE + '/launch-link.php', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({
                         recipient_id: recipientId,
                         content_id: contentId,

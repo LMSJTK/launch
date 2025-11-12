@@ -6,6 +6,9 @@
 
 require_once __DIR__ . '/bootstrap.php';
 
+// Validate bearer token authentication
+validateBearerToken($config);
+
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     sendJSON(['error' => 'Method not allowed'], 405);
 }

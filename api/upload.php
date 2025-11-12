@@ -13,6 +13,9 @@ error_log("=== UPLOAD.PHP STARTING ===");
 require_once __DIR__ . '/bootstrap.php';
 error_log("Bootstrap loaded successfully");
 
+// Validate bearer token authentication
+validateBearerToken($config);
+
 /**
  * Generate a preview link for content
  */

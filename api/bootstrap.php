@@ -120,3 +120,64 @@ function validateRequired($data, $required) {
         ], 400);
     }
 }
+
+/**
+ * Helper function to validate bearer token authentication
+ */
+function validateBearerToken($config) {
+    // Check if API authentication is enabled
+    if (!isset($config['api']['enabled']) || !$config['api']['enabled']) {
+        return; // Authentication disabled
+    }
+
+    // Get the Authorization header
+    $headers = getallheaders();
+    $authHeader = null;
+
+    // Look for Authorization header (case-insensitive)
+    foreach ($headers as $key => $value) {
+        if (strtolower($key) === 'authorization') {
+            $authHeader = $value;
+            break;
+        }
+    }
+
+    // Check if Authorization header exists
+    if (!$authHeader) {
+        sendJSON([
+            'error' => 'Unauthorized',
+            'message' => 'Missing Authorization header'
+        ], 401);
+    }
+
+    // Extract bearer token
+    if (!preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matches)) {
+        sendJSON([
+            'error' => 'Unauthorized',
+            'message' => 'Invalid Authorization header format. Expected: Bearer <token>'
+        ], 401);
+    }
+
+    $providedToken = $matches[1];
+    $expectedToken = $config['api']['bearer_token'] ?? null;
+
+    // Validate token
+    if (!$expectedToken) {
+        error_log('Warning: API bearer token not configured in config.php');
+        sendJSON([
+            'error' => 'Server configuration error',
+            'message' => 'API authentication not properly configured'
+        ], 500);
+    }
+
+    // Use timing-safe comparison to prevent timing attacks
+    if (!hash_equals($expectedToken, $providedToken)) {
+        error_log('Authentication failed: Invalid bearer token provided');
+        sendJSON([
+            'error' => 'Unauthorized',
+            'message' => 'Invalid bearer token'
+        ], 401);
+    }
+
+    // Token is valid, continue
+}
