@@ -171,6 +171,7 @@ try {
                 'content_type' => 'email',
                 'email_subject' => $emailSubject,
                 'email_from_address' => $emailFrom,
+                'email_body_html' => $emailHTML,
                 'content_url' => null
             ]);
 
