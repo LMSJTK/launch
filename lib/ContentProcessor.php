@@ -30,6 +30,7 @@ class ContentProcessor {
                 return $this->processEmailContent($contentId, $filePath);
 
             case 'raw_html':
+            case 'landing':
                 return $this->processRawHTML($contentId, $filePath);
 
             case 'video':
