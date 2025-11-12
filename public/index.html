@@ -551,11 +551,24 @@
                                 ${item.tags ? `<div class="tags">${item.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
                             </div>
                             <div class="content-actions">
-                                <button onclick="copyToClipboard('${escapeHtml(item.id)}')">Copy ID</button>
-                                ${item.content_preview ? `<button onclick="window.open('${escapeHtml(item.content_preview)}', '_blank')">Preview</button>` : ''}
+                                <button class="copy-id-btn" data-content-id="${escapeHtml(item.id)}">Copy ID</button>
+                                ${item.content_preview ? `<button class="preview-btn" data-preview-url="${escapeHtml(item.content_preview)}">Preview</button>` : ''}
                             </div>
                         </div>
                     `).join('');
+
+                    // Attach event listeners to avoid JavaScript context XSS
+                    document.querySelectorAll('.copy-id-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            copyToClipboard(this.getAttribute('data-content-id'));
+                        });
+                    });
+
+                    document.querySelectorAll('.preview-btn').forEach(btn => {
+                        btn.addEventListener('click', function() {
+                            window.open(this.getAttribute('data-preview-url'), '_blank');
+                        });
+                    });
                 } else {
                     contentList.innerHTML = '<div class="loading">No content found</div>';
                 }
