@@ -227,7 +227,7 @@ class ContentProcessor {
         }
 
         // Download any /system assets referenced in the HTML
-        $this->downloadSystemAssets($modifiedHTML, $extractPath);
+        $modifiedHTML = $this->downloadSystemAssets($modifiedHTML, $extractPath, $contentId);
 
         $phpPath = $extractPath . 'index.php';
 
@@ -348,8 +348,9 @@ class ContentProcessor {
     /**
      * Download system assets referenced in HTML
      * Finds references to /system paths and downloads them from https://login.phishme.com
+     * Updates HTML references to point to downloaded local copies
      */
-    private function downloadSystemAssets($html, $contentDir) {
+    private function downloadSystemAssets($html, $contentDir, $contentId) {
         $baseUrl = 'https://login.phishme.com';
 
         // Find all references to /system paths in common HTML attributes
@@ -397,6 +398,21 @@ class ContentProcessor {
             }
         }
 
-        return count($assetsToDownload);
+        // Update HTML references to point to the new local location
+        // Replace /system/... with {basePath}/content/{contentId}/system/...
+        foreach (array_keys($assetsToDownload) as $assetPath) {
+            $newPath = $this->basePath . '/content/' . $contentId . $assetPath;
+
+            // Replace in various contexts
+            $html = str_replace('src="' . $assetPath . '"', 'src="' . $newPath . '"', $html);
+            $html = str_replace("src='" . $assetPath . "'", "src='" . $newPath . "'", $html);
+            $html = str_replace('href="' . $assetPath . '"', 'href="' . $newPath . '"', $html);
+            $html = str_replace("href='" . $assetPath . "'", "href='" . $newPath . "'", $html);
+            $html = str_replace('url(' . $assetPath . ')', 'url(' . $newPath . ')', $html);
+            $html = str_replace('url("' . $assetPath . '")', 'url("' . $newPath . '")', $html);
+            $html = str_replace("url('" . $assetPath . "')", "url('" . $newPath . "')", $html);
+        }
+
+        return $html;
     }
 }
