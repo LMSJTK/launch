@@ -73,11 +73,28 @@ class ContentProcessor {
         // Read HTML content
         $htmlContent = file_get_contents($indexPath);
 
-        // Tag content with Claude API
-        if ($contentType === 'scorm') {
-            $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'educational');
-        } else {
+        // For SCORM, preserve original HTML to avoid stripping JavaScript
+        // For regular HTML, tag content with Claude API
+        $tags = [];
+        if ($contentType === 'html') {
+            // Only tag simple HTML content, not SCORM
             $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'general');
+            $modifiedHTML = $result['html'];
+            $tags = $result['tags'];
+        } else {
+            // For SCORM, use original HTML without modification
+            $modifiedHTML = $htmlContent;
+            // Extract minimal tags from title or meta tags if available
+            if (preg_match('/<title>(.*?)<\/title>/i', $htmlContent, $matches)) {
+                $title = strtolower(trim($matches[1]));
+                // Basic keyword detection
+                $keywords = ['phishing', 'ransomware', 'malware', 'password', 'security', 'privacy', 'email'];
+                foreach ($keywords as $keyword) {
+                    if (stripos($title, $keyword) !== false) {
+                        $tags[] = $keyword;
+                    }
+                }
+            }
         }
 
         // Rename index.html to index.php
@@ -86,7 +103,6 @@ class ContentProcessor {
 
         // Add tracking script to the HTML
         $trackingScript = "<?php \$trackingLinkId = \$_GET['tid'] ?? 'unknown'; ?>\n";
-        $modifiedHTML = $result['html'];
 
         // Inject base tag for relative URLs to work correctly
         // IMPORTANT: Base tag must be first in <head> to affect all relative URLs
@@ -107,7 +123,7 @@ class ContentProcessor {
         file_put_contents($phpPath, $trackingScript . $modifiedHTML);
 
         // Store tags in database
-        $this->storeTags($contentId, $result['tags']);
+        $this->storeTags($contentId, $tags);
 
         // Update content URL in database
         $this->db->update('content',
@@ -119,7 +135,7 @@ class ContentProcessor {
         return [
             'success' => true,
             'message' => 'Content processed successfully',
-            'tags' => $result['tags'],
+            'tags' => $tags,
             'path' => $contentId . '/index.php'
         ];
     }
