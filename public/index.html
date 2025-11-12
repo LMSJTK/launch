@@ -350,6 +350,11 @@
                     <label>Email HTML Content</label>
                     <textarea name="email_html" required placeholder="Paste the email HTML here..."></textarea>
                 </div>
+                <div class="form-group">
+                    <label>Email Attachment (Optional)</label>
+                    <input type="file" name="attachment">
+                    <small style="color: #7f8c8d; display: block; margin-top: 5px;">Add a file attachment to the phishing email (e.g., PDF, DOC, XLS)</small>
+                </div>
                 <button type="submit">Upload and Process</button>
             </form>
 
@@ -502,6 +507,11 @@
                     if (result.difficulty) {
                         const difficultyLabels = {1: 'Least Difficult', 2: 'Moderately Difficult', 3: 'Very Difficult'};
                         message += `<br>Difficulty: ${difficultyLabels[result.difficulty] || result.difficulty}`;
+                    }
+
+                    if (result.attachment_filename) {
+                        const sizeKB = Math.round(result.attachment_size / 1024);
+                        message += `<br>Attachment: ${result.attachment_filename} (${sizeKB} KB)`;
                     }
 
                     if (result.preview_url) {

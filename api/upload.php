@@ -239,12 +239,35 @@ try {
                 sendJSON(['error' => 'email_html is required'], 400);
             }
 
+            // Handle attachment if provided
+            $attachmentFilename = null;
+            $attachmentContent = null;
+            if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+                $attachmentFile = $_FILES['attachment'];
+                $attachmentFilename = basename($attachmentFile['name']);
+
+                // Create content directory
+                $contentDir = $config['content']['upload_dir'] . $contentId . '/';
+                if (!is_dir($contentDir)) {
+                    mkdir($contentDir, 0755, true);
+                }
+
+                // Save attachment to content directory
+                $attachmentPath = $contentDir . $attachmentFilename;
+                if (!move_uploaded_file($attachmentFile['tmp_name'], $attachmentPath)) {
+                    sendJSON(['error' => 'Failed to save attachment file'], 500);
+                }
+
+                // Read file content as binary for database storage
+                $attachmentContent = file_get_contents($attachmentPath);
+            }
+
             // Save email HTML to temp file
             $tempPath = $config['content']['upload_dir'] . 'temp_' . $contentId . '.html';
             file_put_contents($tempPath, $emailHTML);
 
             // Insert content record
-            $db->insert('content', [
+            $insertData = [
                 'id' => $contentId,
                 'company_id' => $companyId,
                 'title' => $title,
@@ -254,7 +277,15 @@ try {
                 'email_from_address' => $emailFrom,
                 'email_body_html' => $emailHTML,
                 'content_url' => null
-            ]);
+            ];
+
+            // Add attachment fields if attachment was provided
+            if ($attachmentFilename !== null) {
+                $insertData['email_attachment_filename'] = $attachmentFilename;
+                $insertData['email_attachment_content'] = $attachmentContent;
+            }
+
+            $db->insert('content', $insertData);
 
             // Process email content
             $result = $contentProcessor->processContent($contentId, 'email', $tempPath);
@@ -265,7 +296,7 @@ try {
             // Generate preview link
             $previewUrl = generatePreviewLink($contentId, $db, $trackingManager, $config);
 
-            sendJSON([
+            $response = [
                 'success' => true,
                 'content_id' => $contentId,
                 'message' => 'Email content processed successfully',
@@ -273,7 +304,15 @@ try {
                 'difficulty' => $result['difficulty'] ?? null,
                 'path' => $result['path'],
                 'preview_url' => $previewUrl
-            ]);
+            ];
+
+            // Include attachment info if present
+            if ($attachmentFilename !== null) {
+                $response['attachment_filename'] = $attachmentFilename;
+                $response['attachment_size'] = strlen($attachmentContent);
+            }
+
+            sendJSON($response);
             break;
 
         default:
