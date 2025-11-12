@@ -13,6 +13,40 @@ error_log("=== UPLOAD.PHP STARTING ===");
 require_once __DIR__ . '/bootstrap.php';
 error_log("Bootstrap loaded successfully");
 
+/**
+ * Generate a preview link for content
+ */
+function generatePreviewLink($contentId, $db, $trackingManager, $config) {
+    // Ensure preview recipient exists
+    $previewRecipient = $db->fetchOne(
+        'SELECT * FROM recipients WHERE id = :id',
+        [':id' => 'preview']
+    );
+
+    if (!$previewRecipient) {
+        $db->insert('recipients', [
+            'id' => 'preview',
+            'company_id' => 'system',
+            'email' => 'preview@system.local',
+            'first_name' => 'Preview',
+            'last_name' => 'User'
+        ]);
+    }
+
+    // Create tracking link for preview
+    $result = $trackingManager->createTrackingLink('preview', $contentId);
+    $previewUrl = $config['app']['base_url'] . $result['launch_url'];
+
+    // Update content with preview link
+    $db->update('content',
+        ['content_preview' => $previewUrl],
+        'id = :id',
+        [':id' => $contentId]
+    );
+
+    return $previewUrl;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     error_log("Wrong method: " . $_SERVER['REQUEST_METHOD']);
     sendJSON(['error' => 'Method not allowed'], 405);
@@ -71,12 +105,16 @@ try {
             // Process content
             $result = $contentProcessor->processContent($contentId, $contentType, $tempPath);
 
+            // Generate preview link
+            $previewUrl = generatePreviewLink($contentId, $db, $trackingManager, $config);
+
             sendJSON([
                 'success' => true,
                 'content_id' => $contentId,
                 'message' => 'Content uploaded and processed successfully',
                 'tags' => $result['tags'] ?? [],
-                'path' => $result['path']
+                'path' => $result['path'],
+                'preview_url' => $previewUrl
             ]);
             break;
 
@@ -113,11 +151,15 @@ try {
                 'content_url' => $contentId . '/video.' . $fileExt
             ]);
 
+            // Generate preview link
+            $previewUrl = generatePreviewLink($contentId, $db, $trackingManager, $config);
+
             sendJSON([
                 'success' => true,
                 'content_id' => $contentId,
                 'message' => 'Video uploaded successfully',
-                'path' => $contentId . '/video.' . $fileExt
+                'path' => $contentId . '/video.' . $fileExt,
+                'preview_url' => $previewUrl
             ]);
             break;
 
@@ -140,12 +182,16 @@ try {
             // Process content
             $result = $contentProcessor->processContent($contentId, 'raw_html', $htmlContent);
 
+            // Generate preview link
+            $previewUrl = generatePreviewLink($contentId, $db, $trackingManager, $config);
+
             sendJSON([
                 'success' => true,
                 'content_id' => $contentId,
                 'message' => 'HTML content processed successfully',
                 'tags' => $result['tags'] ?? [],
-                'path' => $result['path']
+                'path' => $result['path'],
+                'preview_url' => $previewUrl
             ]);
             break;
 
@@ -181,13 +227,17 @@ try {
             // Clean up temp file
             unlink($tempPath);
 
+            // Generate preview link
+            $previewUrl = generatePreviewLink($contentId, $db, $trackingManager, $config);
+
             sendJSON([
                 'success' => true,
                 'content_id' => $contentId,
                 'message' => 'Email content processed successfully',
                 'cues' => $result['cues'] ?? [],
                 'difficulty' => $result['difficulty'] ?? null,
-                'path' => $result['path']
+                'path' => $result['path'],
+                'preview_url' => $previewUrl
             ]);
             break;
 

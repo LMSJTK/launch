@@ -489,6 +489,10 @@
                         message += `<br>Difficulty: ${difficultyLabels[result.difficulty] || result.difficulty}`;
                     }
 
+                    if (result.preview_url) {
+                        message += `<br><a href="${result.preview_url}" target="_blank" style="color: #fff; text-decoration: underline;">Preview Content</a>`;
+                    }
+
                     showAlert('upload-alert', 'success', message);
                     form.reset();
                 } else {
@@ -520,6 +524,7 @@
                             </div>
                             <div class="content-actions">
                                 <button onclick="copyToClipboard('${item.id}')">Copy ID</button>
+                                ${item.content_preview ? `<button onclick="window.open('${item.content_preview}', '_blank')">Preview</button>` : ''}
                             </div>
                         </div>
                     `).join('');
