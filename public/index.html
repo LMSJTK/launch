@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Content Management Platform</title>
+    <title>OCMS API Testing Tool</title>
     <style>
         * {
             margin: 0;
@@ -270,7 +270,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>Content Management Platform</h1>
+            <h1>OCMS API Testing Tool</h1>
             <p class="subtitle">Upload and manage SCORM, HTML, Email, and Video content</p>
         </header>
 
@@ -278,6 +278,7 @@
             <button class="tab active" onclick="switchTab('upload')">Upload Content</button>
             <button class="tab" onclick="switchTab('manage')">Manage Content</button>
             <button class="tab" onclick="switchTab('launch')">Generate Launch Link</button>
+            <button class="tab" onclick="window.location.href='/ocms/public/sns-monitor.html';">View SNS Queue</button>
         </div>
 
         <!-- Upload Tab -->
