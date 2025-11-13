@@ -73,12 +73,20 @@ class ContentProcessor {
 
         // Read HTML content
         $htmlContent = file_get_contents($indexPath);
+        $contentSize = strlen($htmlContent);
+
+        error_log("Processing {$contentType} content, size: {$contentSize} bytes");
 
         // For SCORM, preserve original HTML to avoid stripping JavaScript
-        // For regular HTML, tag content with Claude API
+        // For regular HTML, tag content with Claude API only if size is reasonable
         $tags = [];
-        if ($contentType === 'html') {
-            // Only tag simple HTML content, not SCORM
+
+        // Skip AI processing if content is too large (>150KB) to prevent timeout and truncation
+        $maxSizeForAI = 150000; // 150KB
+
+        if ($contentType === 'html' && $contentSize <= $maxSizeForAI) {
+            // Only tag simple HTML content that's not too large
+            error_log("Tagging HTML content with Claude API");
             $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'general');
             $modifiedHTML = $result['html'];
             $tags = $result['tags'];
@@ -86,7 +94,10 @@ class ContentProcessor {
             // Download external assets (CDN references, /system paths, etc.)
             $modifiedHTML = $this->downloadSystemAssets($modifiedHTML, $extractPath, $contentId);
         } else {
-            // For SCORM, use original HTML without modification
+            if ($contentType === 'html') {
+                error_log("HTML content too large ({$contentSize} bytes), skipping AI tagging");
+            }
+            // For SCORM or large HTML, use original HTML without modification
             $modifiedHTML = $htmlContent;
             // Extract minimal tags from title or meta tags if available
             if (preg_match('/<title>(.*?)<\/title>/i', $htmlContent, $matches)) {
@@ -222,9 +233,33 @@ class ContentProcessor {
      * Process raw HTML content
      */
     private function processRawHTML($contentId, $htmlContent) {
-        // Tag content with Claude API
-        $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'general');
-        $modifiedHTML = $result['html'];
+        $contentSize = strlen($htmlContent);
+        error_log("Processing raw HTML content, size: {$contentSize} bytes");
+
+        // Skip AI processing if content is too large (>150KB) to prevent timeout and truncation
+        $maxSizeForAI = 150000; // 150KB
+
+        if ($contentSize <= $maxSizeForAI) {
+            // Tag content with Claude API
+            error_log("Tagging raw HTML content with Claude API");
+            $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'general');
+            $modifiedHTML = $result['html'];
+            $tags = $result['tags'];
+        } else {
+            error_log("Raw HTML content too large ({$contentSize} bytes), skipping AI tagging");
+            $modifiedHTML = $htmlContent;
+            // Extract tags from title
+            $tags = [];
+            if (preg_match('/<title>(.*?)<\/title>/i', $htmlContent, $matches)) {
+                $title = strtolower(trim($matches[1]));
+                $keywords = ['phishing', 'ransomware', 'malware', 'password', 'security', 'privacy', 'email'];
+                foreach ($keywords as $keyword) {
+                    if (stripos($title, $keyword) !== false) {
+                        $tags[] = $keyword;
+                    }
+                }
+            }
+        }
 
         // Create directory
         $extractPath = $this->contentDir . $contentId . '/';
@@ -263,7 +298,7 @@ class ContentProcessor {
         file_put_contents($phpPath, $trackingScript . $modifiedHTML);
 
         // Store tags
-        $this->storeTags($contentId, $result['tags']);
+        $this->storeTags($contentId, $tags);
 
         // Update content URL
         $this->db->update('content',
@@ -275,7 +310,7 @@ class ContentProcessor {
         return [
             'success' => true,
             'message' => 'HTML content processed successfully',
-            'tags' => $result['tags'],
+            'tags' => $tags,
             'path' => $contentId . '/index.php'
         ];
     }

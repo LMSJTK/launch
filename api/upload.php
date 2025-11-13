@@ -8,6 +8,11 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('log_errors', 1);
+
+// Increase limits for large content processing
+set_time_limit(300); // 5 minutes
+ini_set('memory_limit', '512M'); // 512MB memory
+
 error_log("=== UPLOAD.PHP STARTING ===");
 
 require_once __DIR__ . '/bootstrap.php';
