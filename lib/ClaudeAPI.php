@@ -104,21 +104,36 @@ class ClaudeAPI {
      * Tag HTML content with interactive elements
      */
     public function tagHTMLContent($htmlContent, $contentType = 'educational') {
+        // Allowed tags for educational content
+        $allowedTags = [
+            'brand-impersonation', 'compliance', 'emotions', 'financial-transactions',
+            'general-phishing', 'cloud', 'mobile', 'news-and-events', 'office-communications',
+            'passwords', 'reporting', 'safe-web-browsing', 'shipment-and-deliveries',
+            'small-medium-businesses', 'social-media', 'spear-phishing', 'data-breach',
+            'malware', 'mfa', 'personal-security', 'physical-security', 'ransomware',
+            'shared-file', 'attachment-phish', 'bec-ceo-fraud', 'credential-phish',
+            'qr-codes', 'url-phish'
+        ];
+
+        $allowedTagsList = implode(', ', $allowedTags);
+
         $systemPrompt = "You are an expert at analyzing HTML content and identifying interactive elements. " .
             "Your task is to add data-tag attributes to interactive HTML elements to categorize the topics or skills being tested.\n\n" .
+            "ALLOWED TAGS (use ONLY these tags):\n" .
+            "$allowedTagsList\n\n" .
             "Rules:\n" .
             "1. Add data-tag attributes to interactive elements like inputs, buttons, selects, textareas, clickable elements\n" .
-            "2. Tag values should be lowercase, hyphenated topic names (e.g., 'ransomware', 'phishing', 'password-security')\n" .
+            "2. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
             "3. Only tag elements that are clearly testing knowledge or interaction with a specific topic\n" .
             "4. Return ONLY the complete modified HTML with data-tag attributes added\n" .
             "5. Do not modify the functionality or structure of the HTML, only add data-tag attributes\n" .
             "6. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
-            "7. Common security topics include: phishing, ransomware, malware, social-engineering, password-security, data-privacy, email-security";
+            "7. If no allowed tag matches the content, do not add a tag to that element";
 
         $messages = [
             [
                 'role' => 'user',
-                'content' => "Add data-tag attributes to interactive elements in this HTML. Return ONLY the modified HTML without any explanations or markdown:\n\n" . $htmlContent
+                'content' => "Add data-tag attributes to interactive elements in this HTML using ONLY the allowed tags provided. Return ONLY the modified HTML without any explanations or markdown:\n\n" . $htmlContent
             ]
         ];
 
@@ -132,6 +147,9 @@ class ClaudeAPI {
         preg_match_all('/data-tag="([^"]+)"/', $taggedHTML, $matches);
         $tags = array_unique($matches[1]);
 
+        // Filter to only allowed tags
+        $tags = array_values(array_intersect($tags, $allowedTags));
+
         return [
             'html' => $taggedHTML,
             'tags' => $tags
@@ -142,25 +160,88 @@ class ClaudeAPI {
      * Tag phishing email content with NIST Phish Scale cues
      */
     public function tagPhishingEmail($emailHTML, $nistGuideContent = null) {
+        // Structured cue types with specific criteria
+        $cueTypesJson = '{
+  "cueTypes": [
+    {
+      "type": "Error",
+      "cues": [
+        {"name": "spelling-grammar", "criteria": "Does the message contain inaccurate spelling or grammar use, including mismatched plurality?"},
+        {"name": "inconsistency", "criteria": "Are there inconsistencies contained in the email message?"}
+      ]
+    },
+    {
+      "type": "Technical indicator",
+      "cues": [
+        {"name": "attachment-type", "criteria": "Is there a potentially dangerous attachment?"},
+        {"name": "display-name-email-mismatch", "criteria": "Does a display name hide the real sender or reply-to email address?"},
+        {"name": "url-hyperlinking", "criteria": "Is there text that hides the true URL behind the text?"},
+        {"name": "domain-spoofing", "criteria": "Is a domain name used in addresses or links plausibly similar to a legitimate entity\'s domain?"}
+      ]
+    },
+    {
+      "type": "Visual presentation indicator",
+      "cues": [
+        {"name": "no-minimal-branding", "criteria": "Are appropriately branded labeling, symbols, or insignias missing?"},
+        {"name": "logo-imitation-outdated", "criteria": "Do any branding elements appear to be an imitation or out-of-date?"},
+        {"name": "unprofessional-design", "criteria": "Does the design and formatting violate any conventional professional practices? Do the design elements appear to be unprofessionally generated?"},
+        {"name": "security-indicators-icons", "criteria": "Are any markers, images, or logos that imply the security of the email present?"}
+      ]
+    },
+    {
+      "type": "Language and content",
+      "cues": [
+        {"name": "legal-language-disclaimers", "criteria": "Does the message contain any legal-type language such as copyright information, disclaimers, or tax information?"},
+        {"name": "distracting-detail", "criteria": "Does the email contain details that are superfluous or unrelated to the email\'s main premise?"},
+        {"name": "requests-sensitive-info", "criteria": "Does the message contain a request for any sensitive information, including personally identifying information or credentials?"},
+        {"name": "sense-of-urgency", "criteria": "Does the message contain time pressure to get users to quickly comply with the request, including implied pressure?"},
+        {"name": "threatening-language", "criteria": "Does the message contain a threat, including an implied threat, such as legal ramifications for inaction?"},
+        {"name": "generic-greeting", "criteria": "Does the message lack a greeting or lack personalization in the message?"},
+        {"name": "lack-signer-details", "criteria": "Does the message lack detail about the sender, such as contact information?"},
+        {"name": "humanitarian-appeals", "criteria": "Does the message make an appeal to help others in need?"}
+      ]
+    },
+    {
+      "type": "Common tactic",
+      "cues": [
+        {"name": "too-good-to-be-true", "criteria": "Does the message offer anything that is too good to be true, such as winning a contest, lottery, free vacation and so on?"},
+        {"name": "youre-special", "criteria": "Does the email offer anything just for you, such as a valentine e-card from a secret admirer?"},
+        {"name": "limited-time-offer", "criteria": "Does the email offer anything that won\'t last long or for a limited length of time?"},
+        {"name": "mimics-business-process", "criteria": "Does the message appear to be a work or business-related process, such as a new voicemail, package delivery, order confirmation, notice to reset credentials and so on?"},
+        {"name": "poses-as-authority", "criteria": "Does the message appear to be from a friend, colleague, boss or other authority entity?"}
+      ]
+    }
+  ]
+}';
+
+        $cueTypes = json_decode($cueTypesJson, true)['cueTypes'];
+
+        // Build cue documentation for the prompt
+        $cueDocumentation = "";
+        foreach ($cueTypes as $cueType) {
+            $cueDocumentation .= "\n{$cueType['type']}:\n";
+            foreach ($cueType['cues'] as $cue) {
+                $cueDocumentation .= "  - {$cue['name']}: {$cue['criteria']}\n";
+            }
+        }
+
         $systemPrompt = "You are an expert at analyzing phishing emails using the NIST Phishing Scale methodology. " .
             "Your task is to identify phishing indicators and add data-cue attributes to mark them.\n\n" .
-            "NIST Phish Scale Categories:\n" .
-            "1. VISUAL CUES: Logo/branding issues, suspicious badges, fake security indicators\n" .
-            "2. LANGUAGE CUES: Generic greetings, urgency tactics, grammar errors, requests for sensitive info\n" .
-            "3. TECHNICAL CUES: Domain spoofing, URL hyperlinking tricks, suspicious attachments\n" .
-            "4. ERROR CUES: Inconsistencies, formatting issues, suspicious patterns\n\n" .
+            "PHISHING CUE TYPES AND CRITERIA:\n" .
+            $cueDocumentation . "\n" .
             "NIST Phish Scale Difficulty Ratings:\n" .
             "- Least Difficult (1): Multiple obvious red flags, amateur mistakes, very easy to detect\n" .
             "- Moderately Difficult (2): Some red flags but requires closer inspection, decent attempt\n" .
             "- Very Difficult (3): Sophisticated, few obvious indicators, requires expert knowledge to detect\n\n" .
             "Rules:\n" .
             "1. Add data-cue attributes to elements containing phishing indicators\n" .
-            "2. Use format: data-cue=\"category:description\" (e.g., data-cue=\"language:urgency-tactic\")\n" .
-            "3. Categories: visual, language, technical, error\n" .
+            "2. Use format: data-cue=\"cue-name\" using the exact cue names from the list above (e.g., data-cue=\"sense-of-urgency\")\n" .
+            "3. Use ONLY the cue names provided in the list - these are the standardized NIST Phish Scale indicators\n" .
             "4. On the FIRST line, output: DIFFICULTY:X (where X is 1, 2, or 3)\n" .
             "5. Then output the complete modified HTML with data-cue attributes added\n" .
             "6. Do not modify the content or structure, only add data-cue attributes\n" .
-            "7. Do not include any other explanations, comments, or markdown formatting";
+            "7. Do not include any other explanations, comments, or markdown formatting\n" .
+            "8. Only add cues where the criteria are clearly met in the email content";
 
         if ($nistGuideContent) {
             $systemPrompt .= "\n\nReference Guide:\n" . $nistGuideContent;
@@ -169,7 +250,7 @@ class ClaudeAPI {
         $messages = [
             [
                 'role' => 'user',
-                'content' => "Add data-cue attributes to phishing indicators in this email and assess its difficulty level. " .
+                'content' => "Add data-cue attributes to phishing indicators in this email using the standardized cue names, and assess its difficulty level. " .
                     "First line must be DIFFICULTY:X (1, 2, or 3), then the modified HTML:\n\n" . $emailHTML
             ]
         ];
