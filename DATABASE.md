@@ -66,11 +66,19 @@ GRANT ALL ON SCHEMA global TO your_db_username;
 psql -U your_db_username -d your_database_name -f database/schema.sql
 ```
 
-### 4. Optional: Run Migration
+### 4. Optional: Run Migrations
+
+If you're upgrading from an earlier version, run these migrations:
 
 ```bash
+# Add tags field to content table
 psql -U your_db_username -d your_database_name -f database/migration_add_tags_field.sql
+
+# Add thumbnail support to content table
+psql -U your_db_username -d your_database_name -f database/migration_add_thumbnail.sql
 ```
+
+**Note**: If you're doing a fresh install using the schema.sql file, you don't need to run migrations - all fields are already included.
 
 ## MySQL Setup
 
@@ -109,11 +117,19 @@ FLUSH PRIVILEGES;
 mysql -u your_db_username -p your_database_name < database/schema.mysql.sql
 ```
 
-### 4. Optional: Run Migration
+### 4. Optional: Run Migrations
+
+If you're upgrading from an earlier version, run these migrations:
 
 ```bash
+# Add tags field to content table
 mysql -u your_db_username -p your_database_name < database/migration_add_tags_field.mysql.sql
+
+# Add thumbnail support to content table
+mysql -u your_db_username -p your_database_name < database/migration_add_thumbnail.mysql.sql
 ```
+
+**Note**: If you're doing a fresh install using the schema.mysql.sql file, you don't need to run migrations - all fields are already included.
 
 ## PHP Extensions
 
