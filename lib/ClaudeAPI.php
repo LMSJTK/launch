@@ -117,23 +117,37 @@ class ClaudeAPI {
 
         $allowedTagsList = implode(', ', $allowedTags);
 
-        $systemPrompt = "You are an expert at analyzing HTML content and identifying interactive elements. " .
-            "Your task is to add data-tag attributes to interactive HTML elements to categorize the topics or skills being tested.\n\n" .
+        $systemPrompt = "You are an expert at analyzing educational content and identifying key assessment elements. " .
+            "Your task is to SELECTIVELY add data-tag attributes ONLY to the most important interactive elements that represent core learning objectives or assessments.\n\n" .
             "ALLOWED TAGS (use ONLY these tags):\n" .
             "$allowedTagsList\n\n" .
-            "Rules:\n" .
-            "1. Add data-tag attributes to interactive elements like inputs, buttons, selects, textareas, clickable elements\n" .
-            "2. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
-            "3. Only tag elements that are clearly testing knowledge or interaction with a specific topic\n" .
-            "4. Return ONLY the complete modified HTML with data-tag attributes added\n" .
-            "5. Do not modify the functionality or structure of the HTML, only add data-tag attributes\n" .
-            "6. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
-            "7. If no allowed tag matches the content, do not add a tag to that element";
+            "CRITICAL RULES:\n" .
+            "1. Be SELECTIVE - only tag key assessment elements (quiz questions, main interactive exercises, critical decision points)\n" .
+            "2. DO NOT tag every button or input - only those central to testing knowledge or skills\n" .
+            "3. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
+            "4. PRESERVE the content exactly as provided - do not modify structure, styling, classes, IDs, or functionality\n" .
+            "5. Only ADD the data-tag attribute to selected elements - do not remove or change any existing attributes\n" .
+            "6. Return ONLY the complete modified HTML with data-tag attributes added to key elements\n" .
+            "7. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
+            "8. If no key assessment elements are found, return the HTML unchanged\n" .
+            "9. Prioritize quality over quantity - 2-5 well-chosen tags are better than 20 random tags\n\n" .
+            "Examples of KEY elements to tag:\n" .
+            "- Final quiz/test submission buttons\n" .
+            "- Primary answer selection inputs for assessment questions\n" .
+            "- Main scenario decision buttons that test judgment\n" .
+            "- Critical form submissions that evaluate understanding\n\n" .
+            "Examples of elements to SKIP:\n" .
+            "- Navigation buttons (next, previous, home)\n" .
+            "- Generic UI controls (close, minimize, menu)\n" .
+            "- Decorative or auxiliary interactive elements\n" .
+            "- Pagination or filtering controls";
 
         $messages = [
             [
                 'role' => 'user',
-                'content' => "Add data-tag attributes to interactive elements in this HTML using ONLY the allowed tags provided. Return ONLY the modified HTML without any explanations or markdown:\n\n" . $htmlContent
+                'content' => "SELECTIVELY add data-tag attributes to ONLY the key assessment elements in this educational content. " .
+                    "Use the allowed tags provided. Be conservative and only tag 2-5 most important elements. " .
+                    "Preserve all existing HTML exactly. Return ONLY the modified HTML without explanations:\n\n" . $htmlContent
             ]
         ];
 
