@@ -10,6 +10,7 @@ class ClaudeAPI {
     private $apiUrl;
     private $model;
     private $maxTokens;
+    private $maxContentSize;
 
     public function __construct($config) {
         $this->config = $config;
@@ -17,6 +18,7 @@ class ClaudeAPI {
         $this->apiUrl = $config['api_url'];
         $this->model = $config['model'];
         $this->maxTokens = $config['max_tokens'];
+        $this->maxContentSize = $config['max_content_size'] ?? 500000; // Default to 500KB
     }
 
     /**
@@ -61,6 +63,12 @@ class ClaudeAPI {
         $result = json_decode($response, true);
         if (!isset($result['content'][0]['text'])) {
             throw new Exception("Unexpected Claude API response format");
+        }
+
+        // Check if response was truncated due to max_tokens limit
+        if (isset($result['stop_reason']) && $result['stop_reason'] === 'max_tokens') {
+            error_log("WARNING: Claude API response was truncated due to max_tokens limit. Response may be incomplete.");
+            error_log("Consider increasing max_tokens or reducing content size.");
         }
 
         return $result['content'][0]['text'];
@@ -247,6 +255,18 @@ class ClaudeAPI {
      * Tag HTML content with interactive elements
      */
     public function tagHTMLContent($htmlContent, $contentType = 'educational') {
+        // Check content size - skip AI processing if too large
+        $contentSize = strlen($htmlContent);
+        if ($contentSize > $this->maxContentSize) {
+            error_log("Content size ({$contentSize} bytes) exceeds max_content_size ({$this->maxContentSize} bytes) - skipping AI processing");
+            return [
+                'html' => $htmlContent,
+                'tags' => []
+            ];
+        }
+
+        error_log("Content size: {$contentSize} bytes - proceeding with AI processing");
+
         // STEP 0: Protect sensitive blocks before any other processing
         $protected = $this->protectSensitiveBlocks($htmlContent);
         $protectedHtml = $protected['html'];
@@ -326,6 +346,15 @@ class ClaudeAPI {
         $taggedHTML = $this->restoreProtectedBlocks($taggedHTML, $protectedBlocks);
 
         error_log("Restored " . count($protectedBlocks) . " protected blocks after AI processing");
+
+        // STEP 5: Validate output size - check if response was significantly truncated
+        $outputSize = strlen($taggedHTML);
+        $sizeRatio = $outputSize / $contentSize;
+
+        if ($sizeRatio < 0.8) {
+            error_log("WARNING: Output size ({$outputSize} bytes) is significantly smaller than input size ({$contentSize} bytes). Response may have been truncated.");
+            error_log("Size ratio: " . round($sizeRatio * 100, 2) . "%. Consider increasing max_tokens or max_content_size config.");
+        }
 
         // Extract tags that were added
         preg_match_all('/data-tag="([^"]+)"/', $taggedHTML, $matches);
