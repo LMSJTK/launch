@@ -3,8 +3,8 @@
 ## Prerequisites
 
 - PHP 7.4 or higher
-- PostgreSQL 12 or higher
-- PHP Extensions: `pdo`, `pdo_pgsql`, `zip`, `json`, `curl`
+- **PostgreSQL 12+** or **MySQL 5.7+** / **MariaDB 10.3+**
+- PHP Extensions: `pdo`, `pdo_pgsql` or `pdo_mysql`, `zip`, `json`, `curl`
 - AWS Account with SNS access
 - Claude API key from Anthropic
 
@@ -12,7 +12,7 @@
 
 ### 1. Database Setup
 
-Create your PostgreSQL database and run the schema:
+**Option A: PostgreSQL** (recommended)
 
 ```bash
 # Create database
@@ -21,6 +21,18 @@ createdb your_database_name
 # Run schema
 psql -U your_username -d your_database_name -f database/schema.sql
 ```
+
+**Option B: MySQL**
+
+```bash
+# Create database
+mysql -u root -p -e "CREATE DATABASE your_database_name CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# Run schema
+mysql -u your_username -p your_database_name < database/schema.mysql.sql
+```
+
+For detailed database setup instructions including user creation, permissions, and migrations, see [DATABASE.md](DATABASE.md).
 
 ### 2. Configuration
 
@@ -32,7 +44,9 @@ cp config/config.example.php config/config.php
 
 Edit `config/config.php` and update:
 
+- **Database type** (`pgsql` for PostgreSQL or `mysql` for MySQL)
 - **Database credentials** (host, port, dbname, username, password)
+- **Schema name** (PostgreSQL only, usually `global`)
 - **Claude API key** (get from https://console.anthropic.com/)
 - **AWS SNS settings** (region, access keys, topic ARN)
 - **Base URL** for your installation
@@ -210,9 +224,12 @@ SELECT * FROM sns_message_queue;
 
 ### Database Connection Errors
 
-- Verify PostgreSQL is running
-- Check database credentials in config
-- Ensure PostgreSQL accepts connections from your host
+- Verify your database server (PostgreSQL or MySQL) is running
+- Check database credentials and type setting in config
+- Ensure your database accepts connections from your host
+- For PostgreSQL: verify schema name in config
+- For MySQL: ensure UTF8MB4 character set is used
+- See [DATABASE.md](DATABASE.md) for detailed troubleshooting
 
 ## Production Deployment
 
