@@ -126,11 +126,13 @@ class ClaudeAPI {
             "2. DO NOT tag every button or input - only those central to testing knowledge or skills\n" .
             "3. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
             "4. PRESERVE the content exactly as provided - do not modify structure, styling, classes, IDs, or functionality\n" .
-            "5. Only ADD the data-tag attribute to selected elements - do not remove or change any existing attributes\n" .
-            "6. Return ONLY the complete modified HTML with data-tag attributes added to key elements\n" .
-            "7. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
-            "8. If no key assessment elements are found, return the HTML unchanged\n" .
-            "9. Prioritize quality over quantity - 2-5 well-chosen tags are better than 20 random tags\n\n" .
+            "5. PRESERVE ALL SCRIPT TAGS - do not remove, modify, or relocate any <script> tags or JavaScript code\n" .
+            "6. PRESERVE ALL LINK AND STYLE TAGS - do not remove CSS or external resource references\n" .
+            "7. Only ADD the data-tag attribute to selected elements - do not remove or change any existing attributes\n" .
+            "8. Return ONLY the complete modified HTML with data-tag attributes added to key elements\n" .
+            "9. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
+            "10. If no key assessment elements are found, return the HTML unchanged\n" .
+            "11. Prioritize quality over quantity - 2-5 well-chosen tags are better than 20 random tags\n\n" .
             "Examples of KEY elements to tag:\n" .
             "- Final quiz/test submission buttons\n" .
             "- Primary answer selection inputs for assessment questions\n" .
@@ -147,7 +149,8 @@ class ClaudeAPI {
                 'role' => 'user',
                 'content' => "SELECTIVELY add data-tag attributes to ONLY the key assessment elements in this educational content. " .
                     "Use the allowed tags provided. Be conservative and only tag 2-5 most important elements. " .
-                    "Preserve all existing HTML exactly. Return ONLY the modified HTML without explanations:\n\n" . $htmlContent
+                    "CRITICAL: Preserve ALL script tags, CSS, and external references exactly as they appear. " .
+                    "Return ONLY the modified HTML without explanations:\n\n" . $htmlContent
             ]
         ];
 
