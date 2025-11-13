@@ -101,9 +101,120 @@ class ClaudeAPI {
     }
 
     /**
+     * Extract and tokenize file references from HTML
+     * Returns array with 'html' (tokenized) and 'referenceMap' (token => original value)
+     */
+    private function tokenizeReferences($html) {
+        $referenceMap = [];
+        $tokenCounter = 0;
+
+        // Attributes that contain file references
+        $attributePatterns = [
+            '/\ssrc\s*=\s*["\']([^"\']+)["\']/i',
+            '/\shref\s*=\s*["\']([^"\']+)["\']/i',
+            '/\ssrcset\s*=\s*["\']([^"\']+)["\']/i',
+            '/\sposter\s*=\s*["\']([^"\']+)["\']/i',
+            '/\sdata-src\s*=\s*["\']([^"\']+)["\']/i',
+            '/\sdata-href\s*=\s*["\']([^"\']+)["\']/i',
+            '/\saction\s*=\s*["\']([^"\']+)["\']/i',
+            '/\sbackground\s*=\s*["\']([^"\']+)["\']/i',
+        ];
+
+        foreach ($attributePatterns as $pattern) {
+            $html = preg_replace_callback($pattern, function($matches) use (&$referenceMap, &$tokenCounter) {
+                $fullMatch = $matches[0];
+                $url = $matches[1];
+
+                // Skip if it's already a placeholder, data URI, or absolute https URL to external domains
+                if (strpos($url, '__ASSET_REF_') === 0 ||
+                    strpos($url, 'data:') === 0 ||
+                    strpos($url, 'javascript:') === 0 ||
+                    strpos($url, 'mailto:') === 0) {
+                    return $fullMatch;
+                }
+
+                // Generate unique token
+                $token = '__ASSET_REF_' . str_pad($tokenCounter++, 4, '0', STR_PAD_LEFT) . '__';
+                $referenceMap[$token] = $url;
+
+                // Replace the URL in the matched attribute with the token
+                return str_replace($url, $token, $fullMatch);
+            }, $html);
+        }
+
+        // Handle CSS url() references in style attributes
+        $html = preg_replace_callback('/\sstyle\s*=\s*["\']([^"\']*url\([^)]+\)[^"\']*)["\']/i', function($matches) use (&$referenceMap, &$tokenCounter) {
+            $fullMatch = $matches[0];
+            $styleContent = $matches[1];
+
+            // Find all url() references within this style attribute
+            $tokenizedStyle = preg_replace_callback('/url\(\s*["\']?([^"\'\)]+)["\']?\s*\)/i', function($urlMatches) use (&$referenceMap, &$tokenCounter) {
+                $url = $urlMatches[1];
+
+                // Skip data URIs and already-tokenized values
+                if (strpos($url, '__ASSET_REF_') === 0 || strpos($url, 'data:') === 0) {
+                    return $urlMatches[0];
+                }
+
+                $token = '__ASSET_REF_' . str_pad($tokenCounter++, 4, '0', STR_PAD_LEFT) . '__';
+                $referenceMap[$token] = $url;
+
+                return str_replace($url, $token, $urlMatches[0]);
+            }, $styleContent);
+
+            return str_replace($styleContent, $tokenizedStyle, $fullMatch);
+        }, $html);
+
+        // Handle CSS url() references in <style> tags
+        $html = preg_replace_callback('/<style[^>]*>(.*?)<\/style>/is', function($matches) use (&$referenceMap, &$tokenCounter) {
+            $fullMatch = $matches[0];
+            $styleContent = $matches[1];
+
+            $tokenizedStyle = preg_replace_callback('/url\(\s*["\']?([^"\'\)]+)["\']?\s*\)/i', function($urlMatches) use (&$referenceMap, &$tokenCounter) {
+                $url = $urlMatches[1];
+
+                if (strpos($url, '__ASSET_REF_') === 0 || strpos($url, 'data:') === 0) {
+                    return $urlMatches[0];
+                }
+
+                $token = '__ASSET_REF_' . str_pad($tokenCounter++, 4, '0', STR_PAD_LEFT) . '__';
+                $referenceMap[$token] = $url;
+
+                return str_replace($url, $token, $urlMatches[0]);
+            }, $styleContent);
+
+            return str_replace($styleContent, $tokenizedStyle, $fullMatch);
+        }, $html);
+
+        return [
+            'html' => $html,
+            'referenceMap' => $referenceMap
+        ];
+    }
+
+    /**
+     * Restore original file references from tokens
+     */
+    private function restoreReferences($html, $referenceMap) {
+        // Simple str_replace for each token
+        foreach ($referenceMap as $token => $originalUrl) {
+            $html = str_replace($token, $originalUrl, $html);
+        }
+
+        return $html;
+    }
+
+    /**
      * Tag HTML content with interactive elements
      */
     public function tagHTMLContent($htmlContent, $contentType = 'educational') {
+        // STEP 1: Tokenize all file references before sending to AI
+        $tokenized = $this->tokenizeReferences($htmlContent);
+        $tokenizedHtml = $tokenized['html'];
+        $referenceMap = $tokenized['referenceMap'];
+
+        error_log("Tokenized " . count($referenceMap) . " file references before AI processing");
+
         // Allowed tags for educational content
         $allowedTags = [
             'brand-impersonation', 'compliance', 'emotions', 'financial-transactions',
@@ -126,13 +237,12 @@ class ClaudeAPI {
             "2. DO NOT tag every button or input - only those central to testing knowledge or skills\n" .
             "3. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
             "4. PRESERVE the content exactly as provided - do not modify structure, styling, classes, IDs, or functionality\n" .
-            "5. PRESERVE ALL SCRIPT TAGS - do not remove, modify, or relocate any <script> tags or JavaScript code\n" .
-            "6. PRESERVE ALL LINK AND STYLE TAGS - do not remove CSS or external resource references\n" .
-            "7. Only ADD the data-tag attribute to selected elements - do not remove or change any existing attributes\n" .
-            "8. Return ONLY the complete modified HTML with data-tag attributes added to key elements\n" .
-            "9. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
-            "10. If no key assessment elements are found, return the HTML unchanged\n" .
-            "11. Prioritize quality over quantity - 2-5 well-chosen tags are better than 20 random tags\n\n" .
+            "5. PRESERVE ALL placeholder tokens like __ASSET_REF_0001__ - these are file references that must remain intact\n" .
+            "6. Only ADD the data-tag attribute to selected elements - do not remove or change any existing attributes\n" .
+            "7. Return ONLY the complete modified HTML with data-tag attributes added to key elements\n" .
+            "8. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
+            "9. If no key assessment elements are found, return the HTML unchanged\n" .
+            "10. Prioritize quality over quantity - 2-5 well-chosen tags are better than 20 random tags\n\n" .
             "Examples of KEY elements to tag:\n" .
             "- Final quiz/test submission buttons\n" .
             "- Primary answer selection inputs for assessment questions\n" .
@@ -149,16 +259,22 @@ class ClaudeAPI {
                 'role' => 'user',
                 'content' => "SELECTIVELY add data-tag attributes to ONLY the key assessment elements in this educational content. " .
                     "Use the allowed tags provided. Be conservative and only tag 2-5 most important elements. " .
-                    "CRITICAL: Preserve ALL script tags, CSS, and external references exactly as they appear. " .
-                    "Return ONLY the modified HTML without explanations:\n\n" . $htmlContent
+                    "CRITICAL: Do not modify any placeholder tokens like __ASSET_REF_xxxx__ - these must remain exactly as shown. " .
+                    "Return ONLY the modified HTML without explanations:\n\n" . $tokenizedHtml
             ]
         ];
 
+        // STEP 2: Send tokenized HTML to AI
         $taggedHTML = $this->sendRequest($messages, $systemPrompt);
 
         // Strip any markdown code blocks and explanatory text
         $taggedHTML = $this->stripMarkdownCodeBlocks($taggedHTML);
         $taggedHTML = $this->extractHTMLOnly($taggedHTML);
+
+        // STEP 3: Restore original file references
+        $taggedHTML = $this->restoreReferences($taggedHTML, $referenceMap);
+
+        error_log("Restored " . count($referenceMap) . " file references after AI processing");
 
         // Extract tags that were added
         preg_match_all('/data-tag="([^"]+)"/', $taggedHTML, $matches);
