@@ -101,6 +101,45 @@ class ClaudeAPI {
     }
 
     /**
+     * Protect sensitive HTML blocks (e.g., script/link tags) by replacing them with placeholders
+     * Returns array with 'html' (placeholders inserted) and 'protectedBlocks' (placeholder => original block)
+     */
+    private function protectSensitiveBlocks($html) {
+        $protectedBlocks = [];
+        $tokenCounter = 0;
+
+        $patterns = [
+            '/<script\b[^>]*>.*?<\/script>/is',
+            '/<link\b[^>]*?>/i'
+        ];
+
+        foreach ($patterns as $pattern) {
+            $html = preg_replace_callback($pattern, function ($matches) use (&$protectedBlocks, &$tokenCounter) {
+                $token = '__PROTECTED_BLOCK_' . str_pad($tokenCounter++, 4, '0', STR_PAD_LEFT) . '__';
+                $placeholder = '<!-- ' . $token . ' -->';
+                $protectedBlocks[$placeholder] = $matches[0];
+                return $placeholder;
+            }, $html);
+        }
+
+        return [
+            'html' => $html,
+            'protectedBlocks' => $protectedBlocks
+        ];
+    }
+
+    /**
+     * Restore sensitive HTML blocks that were replaced with placeholders
+     */
+    private function restoreProtectedBlocks($html, $protectedBlocks) {
+        foreach ($protectedBlocks as $placeholder => $originalBlock) {
+            $html = str_replace($placeholder, $originalBlock, $html);
+        }
+
+        return $html;
+    }
+
+    /**
      * Extract and tokenize file references from HTML
      * Returns array with 'html' (tokenized) and 'referenceMap' (token => original value)
      */
@@ -208,8 +247,15 @@ class ClaudeAPI {
      * Tag HTML content with interactive elements
      */
     public function tagHTMLContent($htmlContent, $contentType = 'educational') {
+        // STEP 0: Protect sensitive blocks before any other processing
+        $protected = $this->protectSensitiveBlocks($htmlContent);
+        $protectedHtml = $protected['html'];
+        $protectedBlocks = $protected['protectedBlocks'];
+
+        error_log("Protected " . count($protectedBlocks) . " sensitive blocks before AI processing");
+
         // STEP 1: Tokenize all file references before sending to AI
-        $tokenized = $this->tokenizeReferences($htmlContent);
+        $tokenized = $this->tokenizeReferences($protectedHtml);
         $tokenizedHtml = $tokenized['html'];
         $referenceMap = $tokenized['referenceMap'];
 
@@ -237,7 +283,7 @@ class ClaudeAPI {
             "2. DO NOT tag every button or input - only those central to testing knowledge or skills\n" .
             "3. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
             "4. PRESERVE the content exactly as provided - do not modify structure, styling, classes, IDs, or functionality\n" .
-            "5. PRESERVE ALL placeholder tokens like __ASSET_REF_0001__ - these are file references that must remain intact\n" .
+            "5. PRESERVE ALL placeholder tokens like __ASSET_REF_0001__ and comment markers <!-- __PROTECTED_BLOCK_0001__ --> exactly as shown\n" .
             "6. Only ADD the data-tag attribute to selected elements - do not remove or change any existing attributes\n" .
             "7. Return ONLY the complete modified HTML with data-tag attributes added to key elements\n" .
             "8. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
@@ -259,7 +305,7 @@ class ClaudeAPI {
                 'role' => 'user',
                 'content' => "SELECTIVELY add data-tag attributes to ONLY the key assessment elements in this educational content. " .
                     "Use the allowed tags provided. Be conservative and only tag 2-5 most important elements. " .
-                    "CRITICAL: Do not modify any placeholder tokens like __ASSET_REF_xxxx__ - these must remain exactly as shown. " .
+                    "CRITICAL: Do not modify any placeholder tokens like __ASSET_REF_xxxx__ or comment placeholders <!-- __PROTECTED_BLOCK_xxxx__ --> - these must remain exactly as shown. " .
                     "Return ONLY the modified HTML without explanations:\n\n" . $tokenizedHtml
             ]
         ];
@@ -275,6 +321,11 @@ class ClaudeAPI {
         $taggedHTML = $this->restoreReferences($taggedHTML, $referenceMap);
 
         error_log("Restored " . count($referenceMap) . " file references after AI processing");
+
+        // STEP 4: Restore protected blocks (e.g., scripts, links)
+        $taggedHTML = $this->restoreProtectedBlocks($taggedHTML, $protectedBlocks);
+
+        error_log("Restored " . count($protectedBlocks) . " protected blocks after AI processing");
 
         // Extract tags that were added
         preg_match_all('/data-tag="([^"]+)"/', $taggedHTML, $matches);
