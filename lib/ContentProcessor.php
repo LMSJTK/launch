@@ -81,8 +81,9 @@ class ContentProcessor {
         // For regular HTML, tag content with Claude API only if size is reasonable
         $tags = [];
 
-        // Skip AI processing if content is too large (>150KB) to prevent timeout and truncation
-        $maxSizeForAI = 150000; // 150KB
+        // Skip AI processing if content is too large (>500KB) to prevent timeout and truncation
+        // Claude 3.5 Sonnet supports up to 64k output tokens, so we can handle much larger files
+        $maxSizeForAI = 500000; // 500KB
 
         if ($contentType === 'html' && $contentSize <= $maxSizeForAI) {
             // Only tag simple HTML content that's not too large
@@ -230,8 +231,9 @@ class ContentProcessor {
         $contentSize = strlen($htmlContent);
         error_log("Processing raw HTML content, size: {$contentSize} bytes");
 
-        // Skip AI processing if content is too large (>150KB) to prevent timeout and truncation
-        $maxSizeForAI = 150000; // 150KB
+        // Skip AI processing if content is too large (>500KB) to prevent timeout and truncation
+        // Claude 3.5 Sonnet supports up to 64k output tokens, so we can handle much larger files
+        $maxSizeForAI = 500000; // 500KB
 
         if ($contentSize <= $maxSizeForAI) {
             // Tag content with Claude API
