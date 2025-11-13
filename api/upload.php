@@ -50,6 +50,49 @@ function generatePreviewLink($contentId, $db, $trackingManager, $config) {
     return $previewUrl;
 }
 
+/**
+ * Process thumbnail upload
+ * Returns array with 'filename' and 'content' keys, or null if no thumbnail
+ */
+function processThumbnail($contentId, $config) {
+    if (!isset($_FILES['thumbnail']) || $_FILES['thumbnail']['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    if ($_FILES['thumbnail']['error'] !== UPLOAD_ERR_OK) {
+        throw new Exception('Thumbnail upload failed');
+    }
+
+    $thumbnailFile = $_FILES['thumbnail'];
+    $thumbnailFilename = basename($thumbnailFile['name']);
+
+    // Validate it's an image file
+    $imageInfo = getimagesize($thumbnailFile['tmp_name']);
+    if ($imageInfo === false) {
+        throw new Exception('Thumbnail must be a valid image file');
+    }
+
+    // Create content directory
+    $contentDir = $config['content']['upload_dir'] . $contentId . '/';
+    if (!is_dir($contentDir)) {
+        mkdir($contentDir, 0755, true);
+    }
+
+    // Save thumbnail to content directory
+    $thumbnailPath = $contentDir . $thumbnailFilename;
+    if (!move_uploaded_file($thumbnailFile['tmp_name'], $thumbnailPath)) {
+        throw new Exception('Failed to save thumbnail file');
+    }
+
+    // Read file content as binary for database storage
+    $thumbnailContent = file_get_contents($thumbnailPath);
+
+    return [
+        'filename' => $thumbnailFilename,
+        'content' => $thumbnailContent
+    ];
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     error_log("Wrong method: " . $_SERVER['REQUEST_METHOD']);
     sendJSON(['error' => 'Method not allowed'], 405);
@@ -95,15 +138,25 @@ try {
                 sendJSON(['error' => 'Failed to save uploaded file'], 500);
             }
 
+            // Process thumbnail if provided
+            $thumbnail = processThumbnail($contentId, $config);
+
             // Insert content record
-            $db->insert('content', [
+            $insertData = [
                 'id' => $contentId,
                 'company_id' => $companyId,
                 'title' => $title,
                 'description' => $description,
                 'content_type' => $contentType,
                 'content_url' => null // Will be set after processing
-            ]);
+            ];
+
+            if ($thumbnail !== null) {
+                $insertData['thumbnail_filename'] = $thumbnail['filename'];
+                $insertData['thumbnail_content'] = $thumbnail['content'];
+            }
+
+            $db->insert('content', $insertData);
 
             // Process content
             $result = $contentProcessor->processContent($contentId, $contentType, $tempPath);
@@ -144,15 +197,25 @@ try {
                 sendJSON(['error' => 'Failed to save video file'], 500);
             }
 
+            // Process thumbnail if provided
+            $thumbnail = processThumbnail($contentId, $config);
+
             // Insert content record
-            $db->insert('content', [
+            $insertData = [
                 'id' => $contentId,
                 'company_id' => $companyId,
                 'title' => $title,
                 'description' => $description,
                 'content_type' => 'video',
                 'content_url' => $contentId . '/video.' . $fileExt
-            ]);
+            ];
+
+            if ($thumbnail !== null) {
+                $insertData['thumbnail_filename'] = $thumbnail['filename'];
+                $insertData['thumbnail_content'] = $thumbnail['content'];
+            }
+
+            $db->insert('content', $insertData);
 
             // Generate preview link
             $previewUrl = generatePreviewLink($contentId, $db, $trackingManager, $config);
@@ -172,15 +235,25 @@ try {
                 sendJSON(['error' => 'html_content is required'], 400);
             }
 
+            // Process thumbnail if provided
+            $thumbnail = processThumbnail($contentId, $config);
+
             // Insert content record
-            $db->insert('content', [
+            $insertData = [
                 'id' => $contentId,
                 'company_id' => $companyId,
                 'title' => $title,
                 'description' => $description,
                 'content_type' => 'raw_html',
                 'content_url' => null
-            ]);
+            ];
+
+            if ($thumbnail !== null) {
+                $insertData['thumbnail_filename'] = $thumbnail['filename'];
+                $insertData['thumbnail_content'] = $thumbnail['content'];
+            }
+
+            $db->insert('content', $insertData);
 
             // Process content
             $result = $contentProcessor->processContent($contentId, 'raw_html', $htmlContent);
@@ -204,15 +277,25 @@ try {
                 sendJSON(['error' => 'html_content is required'], 400);
             }
 
+            // Process thumbnail if provided
+            $thumbnail = processThumbnail($contentId, $config);
+
             // Insert content record
-            $db->insert('content', [
+            $insertData = [
                 'id' => $contentId,
                 'company_id' => $companyId,
                 'title' => $title,
                 'description' => $description,
                 'content_type' => 'landing',
                 'content_url' => null
-            ]);
+            ];
+
+            if ($thumbnail !== null) {
+                $insertData['thumbnail_filename'] = $thumbnail['filename'];
+                $insertData['thumbnail_content'] = $thumbnail['content'];
+            }
+
+            $db->insert('content', $insertData);
 
             // Process landing page content (similar to raw_html but designated as landing)
             $result = $contentProcessor->processContent($contentId, 'landing', $htmlContent);
@@ -262,6 +345,9 @@ try {
                 $attachmentContent = file_get_contents($attachmentPath);
             }
 
+            // Process thumbnail if provided
+            $thumbnail = processThumbnail($contentId, $config);
+
             // Save email HTML to temp file
             $tempPath = $config['content']['upload_dir'] . 'temp_' . $contentId . '.html';
             file_put_contents($tempPath, $emailHTML);
@@ -283,6 +369,12 @@ try {
             if ($attachmentFilename !== null) {
                 $insertData['email_attachment_filename'] = $attachmentFilename;
                 $insertData['email_attachment_content'] = $attachmentContent;
+            }
+
+            // Add thumbnail fields if thumbnail was provided
+            if ($thumbnail !== null) {
+                $insertData['thumbnail_filename'] = $thumbnail['filename'];
+                $insertData['thumbnail_content'] = $thumbnail['content'];
             }
 
             $db->insert('content', $insertData);
