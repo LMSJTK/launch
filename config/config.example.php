@@ -21,7 +21,7 @@ return [
         'api_key' => 'your_claude_api_key_here',
         'api_url' => 'https://api.anthropic.com/v1/messages',
         'model' => 'claude-3-5-sonnet-20241022',
-        'max_tokens' => 4096
+        'max_tokens' => 8192 // Increased to handle large content without truncation
     ],
 
     // AWS SNS Configuration

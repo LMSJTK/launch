@@ -63,6 +63,11 @@ class ClaudeAPI {
             throw new Exception("Unexpected Claude API response format");
         }
 
+        // Log if response was truncated
+        if (isset($result['stop_reason']) && $result['stop_reason'] === 'max_tokens') {
+            error_log("WARNING: Claude API response truncated due to max_tokens limit");
+        }
+
         return $result['content'][0]['text'];
     }
 
