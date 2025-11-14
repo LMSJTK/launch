@@ -126,19 +126,25 @@ class ClaudeAPI {
             "Your task is to add data-tag attributes to interactive HTML elements to categorize the topics or skills being tested.\n\n" .
             "ALLOWED TAGS (use ONLY these tags):\n" .
             "$allowedTagsList\n\n" .
-            "Rules:\n" .
-            "1. Add data-tag attributes to interactive elements like inputs, buttons, selects, textareas, clickable elements\n" .
+            "CRITICAL RULES - FOLLOW EXACTLY:\n" .
+            "1. ONLY add data-tag attributes to interactive elements (inputs, buttons, selects, textareas, clickable elements)\n" .
             "2. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
-            "3. Only tag elements that are clearly testing knowledge or interaction with a specific topic\n" .
-            "4. Return ONLY the complete modified HTML with data-tag attributes added\n" .
-            "5. Do not modify the functionality or structure of the HTML, only add data-tag attributes\n" .
-            "6. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
-            "7. If no allowed tag matches the content, do not add a tag to that element";
+            "3. Make ZERO other changes to the HTML - preserve ALL:\n" .
+            "   - Exact formatting, spacing, and indentation\n" .
+            "   - All existing attributes exactly as written\n" .
+            "   - All content, text, and structure\n" .
+            "   - All comments, scripts, and styles\n" .
+            "   - Character encoding and special characters\n" .
+            "4. Return the COMPLETE HTML exactly as provided, with ONLY data-tag attributes added where appropriate\n" .
+            "5. Do not fix, clean, or optimize the HTML in any way\n" .
+            "6. Do not include explanations, comments, or markdown - return ONLY the raw HTML\n" .
+            "7. If this appears to be a partial HTML chunk (missing opening/closing tags), that's expected - process it as-is";
 
         $messages = [
             [
                 'role' => 'user',
-                'content' => "Add data-tag attributes to interactive elements in this HTML using ONLY the allowed tags provided. Return ONLY the modified HTML without any explanations or markdown:\n\n" . $htmlContent
+                'content' => "Add data-tag attributes to interactive elements in this HTML. Make NO other changes whatsoever. " .
+                    "Return ONLY the HTML with data-tag attributes added:\n\n" . $htmlContent
             ]
         ];
 
