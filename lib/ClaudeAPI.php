@@ -10,6 +10,7 @@ class ClaudeAPI {
     private $apiUrl;
     private $model;
     private $maxTokens;
+    private $maxContentSize;
 
     public function __construct($config) {
         $this->config = $config;
@@ -17,6 +18,7 @@ class ClaudeAPI {
         $this->apiUrl = $config['api_url'];
         $this->model = $config['model'];
         $this->maxTokens = $config['max_tokens'];
+        $this->maxContentSize = $config['max_content_size'] ?? 500000; // Default to 500KB
     }
 
     /**
@@ -106,9 +108,178 @@ class ClaudeAPI {
     }
 
     /**
+     * Protect sensitive HTML blocks (e.g., script/link tags) by replacing them with placeholders
+     * Returns array with 'html' (placeholders inserted) and 'protectedBlocks' (placeholder => original block)
+     */
+    private function protectSensitiveBlocks($html) {
+        $protectedBlocks = [];
+        $tokenCounter = 0;
+
+        $patterns = [
+            '/<script\b[^>]*>.*?<\/script>/is',
+            '/<link\b[^>]*?>/i'
+        ];
+
+        foreach ($patterns as $pattern) {
+            $html = preg_replace_callback($pattern, function ($matches) use (&$protectedBlocks, &$tokenCounter) {
+                $token = '__PROTECTED_BLOCK_' . str_pad($tokenCounter++, 4, '0', STR_PAD_LEFT) . '__';
+                $placeholder = '<!-- ' . $token . ' -->';
+                $protectedBlocks[$placeholder] = $matches[0];
+                return $placeholder;
+            }, $html);
+        }
+
+        return [
+            'html' => $html,
+            'protectedBlocks' => $protectedBlocks
+        ];
+    }
+
+    /**
+     * Restore sensitive HTML blocks that were replaced with placeholders
+     */
+    private function restoreProtectedBlocks($html, $protectedBlocks) {
+        foreach ($protectedBlocks as $placeholder => $originalBlock) {
+            $html = str_replace($placeholder, $originalBlock, $html);
+        }
+
+        return $html;
+    }
+
+    /**
+     * Extract and tokenize file references from HTML
+     * Returns array with 'html' (tokenized) and 'referenceMap' (token => original value)
+     */
+    private function tokenizeReferences($html) {
+        $referenceMap = [];
+        $tokenCounter = 0;
+
+        // Attributes that contain file references
+        $attributePatterns = [
+            '/\ssrc\s*=\s*["\']([^"\']+)["\']/i',
+            '/\shref\s*=\s*["\']([^"\']+)["\']/i',
+            '/\ssrcset\s*=\s*["\']([^"\']+)["\']/i',
+            '/\sposter\s*=\s*["\']([^"\']+)["\']/i',
+            '/\sdata-src\s*=\s*["\']([^"\']+)["\']/i',
+            '/\sdata-href\s*=\s*["\']([^"\']+)["\']/i',
+            '/\saction\s*=\s*["\']([^"\']+)["\']/i',
+            '/\sbackground\s*=\s*["\']([^"\']+)["\']/i',
+        ];
+
+        foreach ($attributePatterns as $pattern) {
+            $html = preg_replace_callback($pattern, function($matches) use (&$referenceMap, &$tokenCounter) {
+                $fullMatch = $matches[0];
+                $url = $matches[1];
+
+                // Skip if it's already a placeholder, data URI, or absolute https URL to external domains
+                if (strpos($url, '__ASSET_REF_') === 0 ||
+                    strpos($url, 'data:') === 0 ||
+                    strpos($url, 'javascript:') === 0 ||
+                    strpos($url, 'mailto:') === 0) {
+                    return $fullMatch;
+                }
+
+                // Generate unique token
+                $token = '__ASSET_REF_' . str_pad($tokenCounter++, 4, '0', STR_PAD_LEFT) . '__';
+                $referenceMap[$token] = $url;
+
+                // Replace the URL in the matched attribute with the token
+                return str_replace($url, $token, $fullMatch);
+            }, $html);
+        }
+
+        // Handle CSS url() references in style attributes
+        $html = preg_replace_callback('/\sstyle\s*=\s*["\']([^"\']*url\([^)]+\)[^"\']*)["\']/i', function($matches) use (&$referenceMap, &$tokenCounter) {
+            $fullMatch = $matches[0];
+            $styleContent = $matches[1];
+
+            // Find all url() references within this style attribute
+            $tokenizedStyle = preg_replace_callback('/url\(\s*["\']?([^"\'\)]+)["\']?\s*\)/i', function($urlMatches) use (&$referenceMap, &$tokenCounter) {
+                $url = $urlMatches[1];
+
+                // Skip data URIs and already-tokenized values
+                if (strpos($url, '__ASSET_REF_') === 0 || strpos($url, 'data:') === 0) {
+                    return $urlMatches[0];
+                }
+
+                $token = '__ASSET_REF_' . str_pad($tokenCounter++, 4, '0', STR_PAD_LEFT) . '__';
+                $referenceMap[$token] = $url;
+
+                return str_replace($url, $token, $urlMatches[0]);
+            }, $styleContent);
+
+            return str_replace($styleContent, $tokenizedStyle, $fullMatch);
+        }, $html);
+
+        // Handle CSS url() references in <style> tags
+        $html = preg_replace_callback('/<style[^>]*>(.*?)<\/style>/is', function($matches) use (&$referenceMap, &$tokenCounter) {
+            $fullMatch = $matches[0];
+            $styleContent = $matches[1];
+
+            $tokenizedStyle = preg_replace_callback('/url\(\s*["\']?([^"\'\)]+)["\']?\s*\)/i', function($urlMatches) use (&$referenceMap, &$tokenCounter) {
+                $url = $urlMatches[1];
+
+                if (strpos($url, '__ASSET_REF_') === 0 || strpos($url, 'data:') === 0) {
+                    return $urlMatches[0];
+                }
+
+                $token = '__ASSET_REF_' . str_pad($tokenCounter++, 4, '0', STR_PAD_LEFT) . '__';
+                $referenceMap[$token] = $url;
+
+                return str_replace($url, $token, $urlMatches[0]);
+            }, $styleContent);
+
+            return str_replace($styleContent, $tokenizedStyle, $fullMatch);
+        }, $html);
+
+        return [
+            'html' => $html,
+            'referenceMap' => $referenceMap
+        ];
+    }
+
+    /**
+     * Restore original file references from tokens
+     */
+    private function restoreReferences($html, $referenceMap) {
+        // Simple str_replace for each token
+        foreach ($referenceMap as $token => $originalUrl) {
+            $html = str_replace($token, $originalUrl, $html);
+        }
+
+        return $html;
+    }
+
+    /**
      * Tag HTML content with interactive elements
      */
     public function tagHTMLContent($htmlContent, $contentType = 'educational') {
+        // Check content size - skip AI processing if too large
+        $contentSize = strlen($htmlContent);
+        if ($contentSize > $this->maxContentSize) {
+            error_log("Content size ({$contentSize} bytes) exceeds max_content_size ({$this->maxContentSize} bytes) - skipping AI processing");
+            return [
+                'html' => $htmlContent,
+                'tags' => []
+            ];
+        }
+
+        error_log("Content size: {$contentSize} bytes - proceeding with AI processing");
+
+        // STEP 0: Protect sensitive blocks before any other processing
+        $protected = $this->protectSensitiveBlocks($htmlContent);
+        $protectedHtml = $protected['html'];
+        $protectedBlocks = $protected['protectedBlocks'];
+
+        error_log("Protected " . count($protectedBlocks) . " sensitive blocks before AI processing");
+
+        // STEP 1: Tokenize all file references before sending to AI
+        $tokenized = $this->tokenizeReferences($protectedHtml);
+        $tokenizedHtml = $tokenized['html'];
+        $referenceMap = $tokenized['referenceMap'];
+
+        error_log("Tokenized " . count($referenceMap) . " file references before AI processing");
+
         // Allowed tags for educational content
         $allowedTags = [
             'brand-impersonation', 'compliance', 'emotions', 'financial-transactions',
@@ -122,8 +293,8 @@ class ClaudeAPI {
 
         $allowedTagsList = implode(', ', $allowedTags);
 
-        $systemPrompt = "You are an expert at analyzing HTML content and identifying interactive elements. " .
-            "Your task is to add data-tag attributes to interactive HTML elements to categorize the topics or skills being tested.\n\n" .
+        $systemPrompt = "You are an expert at analyzing educational content and identifying key assessment elements. " .
+            "Your task is to SELECTIVELY add data-tag attributes ONLY to the most important interactive elements that represent core learning objectives or assessments.\n\n" .
             "ALLOWED TAGS (use ONLY these tags):\n" .
             "$allowedTagsList\n\n" .
             "CRITICAL RULES - FOLLOW EXACTLY:\n" .
@@ -148,11 +319,31 @@ class ClaudeAPI {
             ]
         ];
 
+        // STEP 2: Send tokenized HTML to AI
         $taggedHTML = $this->sendRequest($messages, $systemPrompt);
 
         // Strip any markdown code blocks and explanatory text
         $taggedHTML = $this->stripMarkdownCodeBlocks($taggedHTML);
         $taggedHTML = $this->extractHTMLOnly($taggedHTML);
+
+        // STEP 3: Restore original file references
+        $taggedHTML = $this->restoreReferences($taggedHTML, $referenceMap);
+
+        error_log("Restored " . count($referenceMap) . " file references after AI processing");
+
+        // STEP 4: Restore protected blocks (e.g., scripts, links)
+        $taggedHTML = $this->restoreProtectedBlocks($taggedHTML, $protectedBlocks);
+
+        error_log("Restored " . count($protectedBlocks) . " protected blocks after AI processing");
+
+        // STEP 5: Validate output size - check if response was significantly truncated
+        $outputSize = strlen($taggedHTML);
+        $sizeRatio = $outputSize / $contentSize;
+
+        if ($sizeRatio < 0.8) {
+            error_log("WARNING: Output size ({$outputSize} bytes) is significantly smaller than input size ({$contentSize} bytes). Response may have been truncated.");
+            error_log("Size ratio: " . round($sizeRatio * 100, 2) . "%. Consider increasing max_tokens or max_content_size config.");
+        }
 
         // Extract tags that were added
         preg_match_all('/data-tag="([^"]+)"/', $taggedHTML, $matches);

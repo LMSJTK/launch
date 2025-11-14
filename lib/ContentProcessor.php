@@ -117,6 +117,9 @@ class ContentProcessor {
                     }
                 }
             }
+
+            // Also download assets for SCORM (but don't modify HTML via AI)
+            $modifiedHTML = $this->downloadSystemAssets($modifiedHTML, $extractPath, $contentId);
         }
 
         // Rename index.html to index.php
@@ -401,37 +404,35 @@ class ContentProcessor {
     }
 
     /**
-     * Download system assets referenced in HTML
-     * Finds references to /system paths and downloads them from https://login.phishme.com
-     * Updates HTML references to point to downloaded local copies
+     * Download external assets referenced in HTML
+     * Finds references to /system paths (from login.phishme.com) and CDN assets (images.pmeimg.com)
+     * Downloads them and updates HTML references to point to local copies
      */
     private function downloadSystemAssets($html, $contentDir, $contentId) {
-        $baseUrl = 'https://login.phishme.com';
+        $assetsToDownload = [];
 
-        // Find all references to /system paths in common HTML attributes
-        $patterns = [
+        // Pattern 1: /system paths (from login.phishme.com)
+        $systemPatterns = [
             '/src=["\']?(\/system\/[^"\'\s>]+)["\'\s>]/i',
             '/href=["\']?(\/system\/[^"\'\s>]+)["\'\s>]/i',
             '/url\(["\']?(\/system\/[^"\'\)]+)["\'\)]/i' // CSS url() references
         ];
 
-        $assetsToDownload = [];
-
-        foreach ($patterns as $pattern) {
+        foreach ($systemPatterns as $pattern) {
             if (preg_match_all($pattern, $html, $matches)) {
                 foreach ($matches[1] as $fullPath) {
                     // Separate path from query string
                     $parts = explode('?', $fullPath, 2);
                     $pathOnly = $parts[0];
-                    $queryString = isset($parts[1]) ? '?' . $parts[1] : '';
 
                     // Validate path to prevent directory traversal
                     if ($this->isValidSystemPath($pathOnly, $contentDir)) {
-                        // Store both the full path (with query) for download and path-only for filesystem
                         $assetsToDownload[$fullPath] = [
                             'fullPath' => $fullPath,
                             'pathOnly' => $pathOnly,
-                            'queryString' => $queryString
+                            'downloadUrl' => 'https://login.phishme.com' . $fullPath,
+                            'localPath' => $contentDir . ltrim($pathOnly, '/'),
+                            'newHtmlPath' => $this->basePath . '/content/' . $contentId . $pathOnly
                         ];
                     } else {
                         error_log("Rejected invalid system path (directory traversal attempt): $pathOnly");
@@ -440,16 +441,45 @@ class ContentProcessor {
             }
         }
 
+        // Pattern 2: CDN assets (//images.pmeimg.com, //cdn.example.com, etc.)
+        $cdnPatterns = [
+            '/src=["\'](\/\/[^"\'\s>]+)["\'\s>]/i',
+            '/href=["\'](\/\/[^"\'\s>]+)["\'\s>]/i',
+            '/url\(["\']?(\/\/[^"\'\)]+)["\'\)]/i'
+        ];
+
+        foreach ($cdnPatterns as $pattern) {
+            if (preg_match_all($pattern, $html, $matches)) {
+                foreach ($matches[1] as $fullUrl) {
+                    // Parse URL to extract components
+                    $urlParts = parse_url('https:' . $fullUrl);
+                    if (!$urlParts || !isset($urlParts['host'])) {
+                        continue;
+                    }
+
+                    $host = $urlParts['host'];
+                    $path = $urlParts['path'] ?? '/';
+                    $query = isset($urlParts['query']) ? '?' . $urlParts['query'] : '';
+
+                    // Create safe local directory structure: cdn/{host}/path
+                    $localRelativePath = 'cdn/' . $host . $path;
+                    $localPath = $contentDir . $localRelativePath;
+
+                    $assetsToDownload[$fullUrl] = [
+                        'fullPath' => $fullUrl,
+                        'pathOnly' => $path,
+                        'downloadUrl' => 'https:' . $fullUrl,
+                        'localPath' => $localPath,
+                        'newHtmlPath' => $this->basePath . '/content/' . $contentId . '/' . $localRelativePath
+                    ];
+                }
+            }
+        }
+
         // Download each unique asset
-        foreach ($assetsToDownload as $asset) {
-            $fullPath = $asset['fullPath'];
-            $pathOnly = $asset['pathOnly'];
-
-            // Use full path (with query string) for download URL
-            $fullUrl = $baseUrl . $fullPath;
-
-            // Use path only (without query string) for local filesystem
-            $localPath = $contentDir . ltrim($pathOnly, '/');
+        foreach ($assetsToDownload as $originalRef => $asset) {
+            $downloadUrl = $asset['downloadUrl'];
+            $localPath = $asset['localPath'];
 
             // Create directory structure
             $localDir = dirname($localPath);
@@ -458,7 +488,7 @@ class ContentProcessor {
             }
 
             // Download file using wget (with timeout and error handling)
-            $escapedUrl = escapeshellarg($fullUrl);
+            $escapedUrl = escapeshellarg($downloadUrl);
             $escapedPath = escapeshellarg($localPath);
 
             // Use wget with: timeout, follow redirects, quiet mode, overwrite existing
@@ -467,30 +497,25 @@ class ContentProcessor {
             exec($command, $output, $returnCode);
 
             if ($returnCode === 0) {
-                error_log("Downloaded asset: $fullPath from $fullUrl");
+                error_log("Downloaded asset: $originalRef from $downloadUrl");
             } else {
-                error_log("Failed to download asset: $fullPath from $fullUrl (exit code: $returnCode)");
+                error_log("Failed to download asset: $originalRef from $downloadUrl (exit code: $returnCode)");
                 // Continue with other assets even if one fails
             }
         }
 
         // Update HTML references to point to the new local location
-        // Replace /system/... with {basePath}/content/{contentId}/system/...
-        foreach ($assetsToDownload as $asset) {
-            $fullPath = $asset['fullPath'];
-            $pathOnly = $asset['pathOnly'];
+        foreach ($assetsToDownload as $originalRef => $asset) {
+            $newPath = $asset['newHtmlPath'];
 
-            // New path points to local file (without query string since file is local)
-            $newPath = $this->basePath . '/content/' . $contentId . $pathOnly;
-
-            // Replace the full original path (with query string) with new local path (without query string)
-            $html = str_replace('src="' . $fullPath . '"', 'src="' . $newPath . '"', $html);
-            $html = str_replace("src='" . $fullPath . "'", "src='" . $newPath . "'", $html);
-            $html = str_replace('href="' . $fullPath . '"', 'href="' . $newPath . '"', $html);
-            $html = str_replace("href='" . $fullPath . "'", "href='" . $newPath . "'", $html);
-            $html = str_replace('url(' . $fullPath . ')', 'url(' . $newPath . ')', $html);
-            $html = str_replace('url("' . $fullPath . '")', 'url("' . $newPath . '")', $html);
-            $html = str_replace("url('" . $fullPath . "')", "url('" . $newPath . "')", $html);
+            // Replace all variations of the reference
+            $html = str_replace('src="' . $originalRef . '"', 'src="' . $newPath . '"', $html);
+            $html = str_replace("src='" . $originalRef . "'", "src='" . $newPath . "'", $html);
+            $html = str_replace('href="' . $originalRef . '"', 'href="' . $newPath . '"', $html);
+            $html = str_replace("href='" . $originalRef . "'", "href='" . $newPath . "'", $html);
+            $html = str_replace('url(' . $originalRef . ')', 'url(' . $newPath . ')', $html);
+            $html = str_replace('url("' . $originalRef . '")', 'url("' . $newPath . '")', $html);
+            $html = str_replace("url('" . $originalRef . "')", "url('" . $newPath . "')", $html);
         }
 
         return $html;
