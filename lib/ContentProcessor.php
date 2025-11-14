@@ -78,26 +78,33 @@ class ContentProcessor {
         error_log("Processing {$contentType} content, size: {$contentSize} bytes");
 
         // For SCORM, preserve original HTML to avoid stripping JavaScript
-        // For regular HTML, tag content with Claude API only if size is reasonable
+        // For regular HTML, tag content with Claude API
         $tags = [];
 
-        // Skip AI processing if content is too large (>150KB) to prevent timeout and truncation
-        $maxSizeForAI = 150000; // 150KB
+        // Skip AI processing if content is too large (>500KB) to prevent timeout
+        $maxSizeForAI = 500000; // 500KB
+        $chunkThreshold = 50000; // 50KB - use chunking for files larger than this
 
         if ($contentType === 'html' && $contentSize <= $maxSizeForAI) {
-            // Only tag simple HTML content that's not too large
-            error_log("Tagging HTML content with Claude API");
-            $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'general');
-            $modifiedHTML = $result['html'];
-            $tags = $result['tags'];
-
-            // Download external assets (CDN references, /system paths, etc.)
-            $modifiedHTML = $this->downloadSystemAssets($modifiedHTML, $extractPath, $contentId);
+            // Decide whether to use chunking or single-pass processing
+            if ($contentSize > $chunkThreshold) {
+                // Large file: use chunking approach
+                error_log("HTML content is large ({$contentSize} bytes), using chunked processing");
+                $result = $this->processHTMLInChunks($htmlContent, 'educational');
+                $modifiedHTML = $result['html'];
+                $tags = $result['tags'];
+            } else {
+                // Small file: process in one go
+                error_log("Tagging HTML content with Claude API (single pass)");
+                $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'educational');
+                $modifiedHTML = $result['html'];
+                $tags = $result['tags'];
+            }
         } else {
             if ($contentType === 'html') {
                 error_log("HTML content too large ({$contentSize} bytes), skipping AI tagging");
             }
-            // For SCORM or large HTML, use original HTML without modification
+            // For SCORM or extremely large HTML, use original HTML without modification
             $modifiedHTML = $htmlContent;
             // Extract minimal tags from title or meta tags if available
             if (preg_match('/<title>(.*?)<\/title>/i', $htmlContent, $matches)) {
@@ -236,15 +243,25 @@ class ContentProcessor {
         $contentSize = strlen($htmlContent);
         error_log("Processing raw HTML content, size: {$contentSize} bytes");
 
-        // Skip AI processing if content is too large (>150KB) to prevent timeout and truncation
-        $maxSizeForAI = 150000; // 150KB
+        // Skip AI processing if content is too large (>500KB) to prevent timeout
+        $maxSizeForAI = 500000; // 500KB
+        $chunkThreshold = 50000; // 50KB - use chunking for files larger than this
 
         if ($contentSize <= $maxSizeForAI) {
-            // Tag content with Claude API
-            error_log("Tagging raw HTML content with Claude API");
-            $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'general');
-            $modifiedHTML = $result['html'];
-            $tags = $result['tags'];
+            // Decide whether to use chunking or single-pass processing
+            if ($contentSize > $chunkThreshold) {
+                // Large file: use chunking approach
+                error_log("Raw HTML content is large ({$contentSize} bytes), using chunked processing");
+                $result = $this->processHTMLInChunks($htmlContent, 'educational');
+                $modifiedHTML = $result['html'];
+                $tags = $result['tags'];
+            } else {
+                // Small file: process in one go
+                error_log("Tagging raw HTML content with Claude API (single pass)");
+                $result = $this->claudeAPI->tagHTMLContent($htmlContent, 'educational');
+                $modifiedHTML = $result['html'];
+                $tags = $result['tags'];
+            }
         } else {
             error_log("Raw HTML content too large ({$contentSize} bytes), skipping AI tagging");
             $modifiedHTML = $htmlContent;
@@ -554,5 +571,106 @@ class ContentProcessor {
         }
 
         return true;
+    }
+
+    /**
+     * Split HTML content into chunks at safe boundaries
+     * Splits at closing tags to avoid breaking HTML structure
+     */
+    private function splitHTMLIntoChunks($html, $maxChunkSize = 50000) {
+        if (strlen($html) <= $maxChunkSize) {
+            return [$html];
+        }
+
+        $chunks = [];
+        $currentPos = 0;
+        $htmlLength = strlen($html);
+
+        error_log("Splitting HTML (" . $htmlLength . " bytes) into chunks of ~" . $maxChunkSize . " bytes");
+
+        while ($currentPos < $htmlLength) {
+            // Calculate the end position for this chunk
+            $endPos = min($currentPos + $maxChunkSize, $htmlLength);
+
+            // If we're at the end, just take the rest
+            if ($endPos >= $htmlLength) {
+                $chunks[] = substr($html, $currentPos);
+                break;
+            }
+
+            // Extract chunk from current position to end position
+            $chunk = substr($html, $currentPos, $endPos - $currentPos);
+
+            // Find the last safe closing tag in this chunk
+            // Look for common closing tags
+            $safeTagPattern = '/<\/(div|section|form|article|main|p|li|ul|ol|table|tr|td|th|header|footer|nav|aside)>/i';
+
+            if (preg_match_all($safeTagPattern, $chunk, $matches, PREG_OFFSET_CAPTURE)) {
+                // Get the last match
+                $lastMatch = end($matches[0]);
+                $splitPoint = $lastMatch[1] + strlen($lastMatch[0]);
+
+                // Adjust chunk to end at this safe point
+                $chunk = substr($chunk, 0, $splitPoint);
+            }
+            // If no safe tags found, try to at least split at a tag boundary (any closing tag)
+            elseif (preg_match_all('/<\/[^>]+>/i', $chunk, $matches, PREG_OFFSET_CAPTURE)) {
+                $lastMatch = end($matches[0]);
+                $splitPoint = $lastMatch[1] + strlen($lastMatch[0]);
+                $chunk = substr($chunk, 0, $splitPoint);
+            }
+
+            $chunks[] = $chunk;
+            $currentPos += strlen($chunk);
+        }
+
+        error_log("Split HTML into " . count($chunks) . " chunks");
+        return $chunks;
+    }
+
+    /**
+     * Process large HTML content in chunks
+     * Each chunk is tagged separately and then reassembled
+     */
+    private function processHTMLInChunks($htmlContent, $contentType = 'educational') {
+        $chunks = $this->splitHTMLIntoChunks($htmlContent, 50000); // 50KB chunks
+
+        $taggedChunks = [];
+        $allTags = [];
+
+        foreach ($chunks as $index => $chunk) {
+            $chunkNum = $index + 1;
+            $totalChunks = count($chunks);
+
+            error_log("Processing chunk {$chunkNum}/{$totalChunks} (" . strlen($chunk) . " bytes)");
+
+            try {
+                $result = $this->claudeAPI->tagHTMLContent($chunk, $contentType);
+                $taggedChunks[] = $result['html'];
+
+                // Accumulate tags from all chunks
+                foreach ($result['tags'] as $tag) {
+                    if (!in_array($tag, $allTags)) {
+                        $allTags[] = $tag;
+                    }
+                }
+
+                error_log("Chunk {$chunkNum}/{$totalChunks} completed, found " . count($result['tags']) . " tags");
+            } catch (Exception $e) {
+                error_log("Error processing chunk {$chunkNum}/{$totalChunks}: " . $e->getMessage());
+                // On error, use original chunk without tags
+                $taggedChunks[] = $chunk;
+            }
+        }
+
+        // Reassemble all chunks
+        $taggedHTML = implode('', $taggedChunks);
+
+        error_log("Chunked processing complete. Total unique tags: " . count($allTags));
+
+        return [
+            'html' => $taggedHTML,
+            'tags' => $allTags
+        ];
     }
 }

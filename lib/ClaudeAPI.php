@@ -297,35 +297,25 @@ class ClaudeAPI {
             "Your task is to SELECTIVELY add data-tag attributes ONLY to the most important interactive elements that represent core learning objectives or assessments.\n\n" .
             "ALLOWED TAGS (use ONLY these tags):\n" .
             "$allowedTagsList\n\n" .
-            "CRITICAL RULES:\n" .
-            "1. Be SELECTIVE - only tag key assessment elements (quiz questions, main interactive exercises, critical decision points)\n" .
-            "2. DO NOT tag every button or input - only those central to testing knowledge or skills\n" .
-            "3. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
-            "4. PRESERVE the content exactly as provided - do not modify structure, styling, classes, IDs, or functionality\n" .
-            "5. PRESERVE ALL placeholder tokens like __ASSET_REF_0001__ and comment markers <!-- __PROTECTED_BLOCK_0001__ --> exactly as shown\n" .
-            "6. Only ADD the data-tag attribute to selected elements - do not remove or change any existing attributes\n" .
-            "7. Return ONLY the complete modified HTML with data-tag attributes added to key elements\n" .
-            "8. Do not include any explanations, comments, or markdown formatting - return ONLY the raw HTML\n" .
-            "9. If no key assessment elements are found, return the HTML unchanged\n" .
-            "10. Prioritize quality over quantity - 2-5 well-chosen tags are better than 20 random tags\n\n" .
-            "Examples of KEY elements to tag:\n" .
-            "- Final quiz/test submission buttons\n" .
-            "- Primary answer selection inputs for assessment questions\n" .
-            "- Main scenario decision buttons that test judgment\n" .
-            "- Critical form submissions that evaluate understanding\n\n" .
-            "Examples of elements to SKIP:\n" .
-            "- Navigation buttons (next, previous, home)\n" .
-            "- Generic UI controls (close, minimize, menu)\n" .
-            "- Decorative or auxiliary interactive elements\n" .
-            "- Pagination or filtering controls";
+            "CRITICAL RULES - FOLLOW EXACTLY:\n" .
+            "1. ONLY add data-tag attributes to interactive elements (inputs, buttons, selects, textareas, clickable elements)\n" .
+            "2. Tag values MUST be one of the allowed tags listed above - use ONLY these exact tag names\n" .
+            "3. Make ZERO other changes to the HTML - preserve ALL:\n" .
+            "   - Exact formatting, spacing, and indentation\n" .
+            "   - All existing attributes exactly as written\n" .
+            "   - All content, text, and structure\n" .
+            "   - All comments, scripts, and styles\n" .
+            "   - Character encoding and special characters\n" .
+            "4. Return the COMPLETE HTML exactly as provided, with ONLY data-tag attributes added where appropriate\n" .
+            "5. Do not fix, clean, or optimize the HTML in any way\n" .
+            "6. Do not include explanations, comments, or markdown - return ONLY the raw HTML\n" .
+            "7. If this appears to be a partial HTML chunk (missing opening/closing tags), that's expected - process it as-is";
 
         $messages = [
             [
                 'role' => 'user',
-                'content' => "SELECTIVELY add data-tag attributes to ONLY the key assessment elements in this educational content. " .
-                    "Use the allowed tags provided. Be conservative and only tag 2-5 most important elements. " .
-                    "CRITICAL: Do not modify any placeholder tokens like __ASSET_REF_xxxx__ or comment placeholders <!-- __PROTECTED_BLOCK_xxxx__ --> - these must remain exactly as shown. " .
-                    "Return ONLY the modified HTML without explanations:\n\n" . $tokenizedHtml
+                'content' => "Add data-tag attributes to interactive elements in this HTML. Make NO other changes whatsoever. " .
+                    "Return ONLY the HTML with data-tag attributes added:\n\n" . $htmlContent
             ]
         ];
 
